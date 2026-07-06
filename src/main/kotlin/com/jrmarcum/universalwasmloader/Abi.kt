@@ -1,7 +1,6 @@
 package com.jrmarcum.universalwasmloader
 
 import com.dylibso.chicory.runtime.HostFunction
-import com.dylibso.chicory.runtime.ImportValues
 import com.dylibso.chicory.runtime.Instance
 import com.dylibso.chicory.wasm.types.ValueType
 
@@ -88,13 +87,13 @@ internal object Abi {
         else       -> 0L
     }
 
-    // Build the Chicory ImportValues for the WIT import section.
+    // Build the Chicory host functions for the WIT import section (the "env" namespace).
     // memRef.current must be set to instance.memory() after instantiation for string decoding.
-    fun buildImportEnv(
+    fun buildEnvFunctions(
         importFuncs: List<WitFunction>,
         userCallbacks: Callbacks,
         memRef: MemRef
-    ): ImportValues {
+    ): List<HostFunction> {
         val hostFunctions = importFuncs.map { fn ->
             val wasmKey    = fn.name.replace('-', '_')  // env-mul → env_mul
             val camelKey   = fn.camelName               // env-mul → envMul (user callback key)
@@ -137,8 +136,6 @@ internal object Abi {
             }
         }
 
-        val builder = ImportValues.builder()
-        hostFunctions.forEach { builder.addFunction(it) }
-        return builder.build()
+        return hostFunctions
     }
 }

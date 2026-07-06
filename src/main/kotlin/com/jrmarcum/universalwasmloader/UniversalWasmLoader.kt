@@ -2,6 +2,8 @@ package com.jrmarcum.universalwasmloader
 
 import com.dylibso.chicory.runtime.ImportValues
 import com.dylibso.chicory.runtime.Instance
+import com.dylibso.chicory.wasi.WasiOptions
+import com.dylibso.chicory.wasi.WasiPreview1
 import com.dylibso.chicory.wasm.Parser
 import com.dylibso.chicory.wasm.types.ExternalType
 import kotlinx.coroutines.Dispatchers
@@ -337,17 +339,32 @@ private fun instantiateFromBytes(
     val wasmModule = Parser.parse(wasmBytes)
     val memRef     = MemRef()
 
-    val importValues = if (witDoc != null && witDoc.imports.isNotEmpty()) {
-        Abi.buildImportEnv(witDoc.imports, callbacks, memRef)
-    } else {
-        ImportValues.empty()
+    // SPEC §10.2 — provide a minimal WASI Preview 1 (chicory-wasi, stdio inherited)
+    // so an I/O-using library — e.g. a `wasmtk modc` lib that calls console.log →
+    // fd_write — instantiates here. Pure-compute modules import none of it.
+    val wasi = WasiPreview1.builder()
+        .withOptions(WasiOptions.builder().inheritSystem().build())
+        .build()
+    val importBuilder = ImportValues.builder()
+    importBuilder.addFunction(*wasi.toHostFunctions())
+    if (witDoc != null && witDoc.imports.isNotEmpty()) {
+        for (fn in Abi.buildEnvFunctions(witDoc.imports, callbacks, memRef)) {
+            importBuilder.addFunction(fn)
+        }
     }
+    val importValues = importBuilder.build()
 
     val instance = Instance.builder(wasmModule)
         .withImportValues(importValues)
         .build()
 
     memRef.current = instance.memory()
+
+    // SPEC §10.1 — call the reactor initializer once, before any other export.
+    // No-op for modules that don't export `_initialize`.
+    if (findExportByName(instance, "_initialize") != null) {
+        instance.export("_initialize").apply()
+    }
 
     val stringAbi = detectStringAbi(instance)
 

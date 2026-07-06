@@ -17,6 +17,8 @@ val chicoryVersion = "1.0.0"
 dependencies {
     implementation("com.dylibso.chicory:runtime:$chicoryVersion")
     implementation("com.dylibso.chicory:wasm:$chicoryVersion")
+    // Minimal WASI Preview 1 (SPEC §10.2) so I/O-using library modules can load.
+    implementation("com.dylibso.chicory:wasi:$chicoryVersion")
 
     // Kotlin coroutines for wasmImport (async URL loading) and InstancePool
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0")

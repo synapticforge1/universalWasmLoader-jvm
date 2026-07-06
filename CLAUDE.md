@@ -117,7 +117,7 @@ universalWasmLoader-jvm/
 ├── src/
 │   ├── main/kotlin/com/jrmarcum/universalwasmloader/
 │   │   ├── WitParser.kt        # Regex-based WIT parser (no dependencies)
-│   │   ├── Abi.kt              # Canonical ABI encode/decode + MemRef + HostImports builder
+│   │   ├── Abi.kt              # Canonical ABI encode/decode + MemRef + env HostFunction builder
 │   │   ├── Callbacks.kt        # Host import callback builder (.on() overloads)
 │   │   └── UniversalWasmLoader.kt  # Public API: wasmLoad, wasmImport, createSingleton, InstancePool
 │   └── test/
@@ -142,10 +142,30 @@ When no companion `.wit` file is found, `wasmLoad` returns a `ModuleHandle` back
 ### WIT-aware form
 
 1. Detect `.wit` alongside `.wasm` (replace suffix); parse with `WitParser`
-2. `Abi.buildImportEnv` — builds `HostImports` for Chicory; uses `MemRef` for deferred memory access
-3. `Instance.builder(module).withHostImports(hostImports).build()`
+2. `Abi.buildEnvFunctions` — builds the `env`-namespace `List<HostFunction>` for Chicory; uses `MemRef` for deferred memory access
+3. Combine with the SPEC §10.2 WASI shim (`WasiPreview1` from `chicory-wasi`, `wasi.toHostFunctions()`) into one `ImportValues`; `Instance.builder(module).withImportValues(...).build()`
 4. Set `memRef.current = instance.memory()` so string imports can decode
 5. `ModuleHandle.callWithAbi` — encodes JVM args via `Abi.encodeArg`, calls Chicory export, decodes result
+
+### SPEC §10 — producer model (loader capabilities)
+
+Both instantiation paths (raw and WIT-aware) apply the two SPEC §10 capabilities:
+
+- **§10.1 `_initialize`** — after `linker.instantiate(...)`, if the module exports
+  `_initialize` (a WASI reactor initializer) it is invoked exactly once before any
+  other export. Wired via `findExportByName(instance, "_initialize")` →
+  `instance.export("_initialize").apply()`. No-op for modules without it.
+- **§10.2 minimal WASI shim** — a `WasiPreview1` instance (`chicory-wasi`,
+  `implementation("com.dylibso.chicory:wasi:$chicoryVersion")`) built with
+  `WasiOptions.builder().inheritSystem().build()` supplies the
+  `wasi_snapshot_preview1` imports (`fd_write` to stdout/stderr, `proc_exit`,
+  `random_get`, clocks, environ/args, …). Its `wasi.toHostFunctions()` are merged
+  with the `env` host functions into one `ImportValues`, so I/O-using library modules
+  (e.g. a `modc` lib that calls `console.log`) instantiate in a plain JVM host with no
+  native WASI. Unlike the hand-rolled shim in `-js`/`-rs`, the JVM reuses Chicory's
+  first-party WASI implementation.
+
+Covered by `LoaderTest.kt` §10 tests (`init_check.wasm`, `wasi_io_50.wasm`).
 
 ### WIT parser (`WitParser.kt`)
 

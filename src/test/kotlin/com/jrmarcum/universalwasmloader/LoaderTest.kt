@@ -248,4 +248,25 @@ class LoaderTest {
         assertEquals(1, doc.exports.size)
         assertEquals("scale", doc.exports[0].camelName)
     }
+
+    // ---------------------------------------------------------------------------
+    // SPEC §10 — producer model (loader capabilities)
+    // ---------------------------------------------------------------------------
+
+    @Test
+    fun `SPEC 10_1 initialize called after instantiation`() {
+        // init_check.wasm has no companion .wit (raw-exports path); its `_initialize`
+        // sets a global to 99 that `getValue` reads — 99 proves the loader invoked it.
+        val m = wasmLoad(fixture("init_check.wasm"))
+        // Raw-mode (no .wit) returns a Long; normalize before comparing.
+        assertEquals(99, (m.call("getValue") as Number).toInt())
+    }
+
+    @Test
+    fun `SPEC 10_2 wasi io library loads`() {
+        // wasi_io_50 is a modc library that calls console.log → imports fd_write. It
+        // only instantiates because the loader provides the minimal WASI-P1 shim.
+        val m = wasmLoad(fixture("wasi_io_50.wasm"))
+        assertEquals(42, m.call("logAndDouble", 21))
+    }
 }
