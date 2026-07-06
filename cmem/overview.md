@@ -27,11 +27,12 @@ by camelCase WIT export names. It is the JVM-side equivalent of the JS reference
 ```
 src/main/kotlin/com/jrmarcum/universalwasmloader/
 ├── UniversalWasmLoader.kt   # Public API + ModuleHandle + string-return decode + load/instantiate helpers
-├── Abi.kt                   # ABI encode/decode, MemRef, import-env builder, StringAbi enum
+├── Abi.kt                   # ABI encode/decode, MemRef, StringAbi enum, buildEnvFunctions (env HostFunctions)
 ├── Callbacks.kt             # Host import callback builder (.on(camelName){...} 0–3 arg overloads)
 └── WitParser.kt             # Regex-based, zero-dependency WIT parser
-src/test/kotlin/.../LoaderTest.kt   # 24 @Test cases (mirrors SPEC §8)
+src/test/kotlin/.../LoaderTest.kt   # 26 @Test cases (mirrors SPEC §8; incl. 2 §10 tests)
 src/test/resources/tests/           # math_50 / booleans_50 / strings_50 / imports_50 (.wasm + .wit)
+                                     # + init_check.wasm, wasi_io_50.{wasm,wit} (§10 fixtures)
 ```
 
 ## Public API surface (what actually exists)
@@ -98,8 +99,8 @@ to let the module free that allocation.
     `__str_ret_len` (side-channel) after a void call. Kept as a legacy/compat fallback.
 - `Abi.witTypeToReturnTypes(type, stringAbi = StringAbi.NONE)` is now **profile-aware**: a CANONICAL
   `string` return maps to a single **i32** result; non-CANONICAL string returns keep `emptyList()`
-  (the void side-channel). `buildImportEnv` calls it without `stringAbi` (defaults to `NONE`), so
-  host-import callback returns are unaffected.
+  (the void side-channel). `buildEnvFunctions` (formerly `buildImportEnv`) calls it without
+  `stringAbi` (defaults to `NONE`), so host-import callback returns are unaffected.
 
 **Fixture:** `src/test/resources/tests/strings_50.{wasm,wit}` was replaced with the new-ABI fixture
 from wasmtk (`tests/bindgen_fixtures/strings_50.*`). The new `.wasm` exports `cabi_realloc` (CANONICAL,
@@ -113,10 +114,25 @@ unchanged. Local `SPEC.md` bumped v2.0.0 → 3.0.0 with the callee-allocated ret
 
 ## Tests
 
-JUnit 5 (`./gradlew test`). `LoaderTest.kt` has **24 `@Test`** cases mirroring SPEC §8, exercising the
+JUnit 5 (`./gradlew test`). `LoaderTest.kt` has **26 `@Test`** cases mirroring SPEC §8, exercising the
 four fixtures: `math_50` (numeric round-trip), `booleans_50` (bool normalization), `strings_50`
 (string param + return, WASIC ABI), `imports_50` (host import callbacks). No-WIT raw mode is covered by
 the repo-root `math.wasm` (numeric, no `.wit`).
+
+## SPEC §10 — producer model (loader capabilities), added 2026-07-05 (`1e1ecb8`)
+
+- **§10.1** — after instantiation, `UniversalWasmLoader.kt` calls a reactor module's `_initialize`
+  once before any other export (`instance.export("_initialize").apply()` when present; no-op otherwise).
+- **§10.2** — the minimal WASI-P1 surface comes from **`chicory-wasi`** (`implementation("com.dylibso.chicory:wasi:$chicoryVersion")`):
+  a `WasiPreview1` built with `WasiOptions.builder().inheritSystem()`, whose `toHostFunctions()` are
+  merged with the `env` host functions (`Abi.buildEnvFunctions`, refactored from the old
+  `buildImportEnv` to return `List<HostFunction>`) into one `ImportValues`. So an I/O-using library
+  module (a `modc` lib calling `console.log` → `fd_write`) loads on a plain JVM with no native WASI.
+  Uses Chicory's first-party WASI rather than a hand-rolled shim.
+- **Tests:** `SPEC 10_1 initialize called after instantiation` (`getValue()==99`, raw path — note
+  raw-mode returns `Long`, so `(… as Number).toInt()`) and `SPEC 10_2 wasi io library loads`
+  (`logAndDouble(21)==42`), fixtures `init_check.wasm` + `wasi_io_50.{wasm,wit}` in
+  `src/test/resources/tests/`.
 
 ## Build / release flow
 
