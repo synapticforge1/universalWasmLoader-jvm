@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(git ls-remote --get-url origin)",
+      "PowerShell(gh repo view --json nameWithOwner,url 2>$null)"
+    ]
+  }
+}

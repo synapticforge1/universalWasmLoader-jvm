@@ -22,6 +22,29 @@ by camelCase WIT export names. It is the JVM-side equivalent of the JS reference
   after that). See Release flow below for the secret/credential gotchas that blocked the first attempt.
 - **Toolchain:** Gradle 9.x (Kotlin DSL), Kotlin 2.2.0, JVM target 24, JDK 25 toolchain (requires JDK 24+).
 
+## Repository home (moved to the `synapticforge1` org, verified 2026-10-20)
+
+- **Canonical repo:** `https://github.com/synapticforge1/universalWasmLoader-jvm`. The owner moved it
+  from the personal account `jrmarcum` to the `synapticforge1` organization, which the owner controls.
+  Verified 2026-10-20: `https://github.com/jrmarcum/universalWasmLoader-jvm` answers
+  `301 → https://github.com/synapticforge1/universalWasmLoader-jvm`.
+- **What did NOT change:** the Maven groupId stays **`io.github.jrmarcum`**. A Central Portal
+  `io.github.<name>` namespace is verified against a GitHub *account*, not against where a repo
+  lives, and the namespace is already verified. Moving to `io.github.synapticforge1` would be a
+  breaking coordinate change and would need a new namespace verification. That is the owner's call
+  and is not planned. The Kotlin package `com.jrmarcum.universalwasmloader` is also unchanged.
+- **Stale references still pointing at `jrmarcum/…`** (they still work through the redirect, but
+  should be updated when someone next touches them; as of 2026-10-20):
+  - local `origin` remote → `git remote set-url origin https://github.com/synapticforge1/universalWasmLoader-jvm.git`
+  - `build.gradle.kts` POM `url` / `scm.connection` / `scm.developerConnection` / `scm.url`
+    (these are baked into every published POM, so fix them before the next release)
+  - the header comment in `.github/workflows/publish.yml` ("actions owned by `jrmarcum`")
+  - `VISION.md` link to `github.com/jrmarcum/wasmtk` (that repo may have moved as well; check it)
+- **Things to re-verify after the move:** repository secrets (`MAVEN_CENTRAL_*`, `GPG_*`) normally
+  move with the repo, but confirm they are there before the next tag push. The Actions allow-list
+  now comes from the **`synapticforge1` org's** policy, not the personal account's (see the `run:`-only
+  section below).
+
 ## Source layout
 
 ```
@@ -204,7 +227,10 @@ Central Portal auth). Causes to check, in order:
 
 ### `run:`-only workflow (Actions policy)
 
-This org's Actions policy permits **only `jrmarcum`-owned actions**. Any third-party `uses:` step
+This policy was recorded 2026-06-24, when the repo lived under the personal account `jrmarcum`. Since
+the move to `synapticforge1`, the **org's** Actions policy governs, and it has not been re-checked
+(2026-10-20). Keep the workflow `run:`-only until someone confirms the org's policy.
+The account's Actions policy permitted **only `jrmarcum`-owned actions**. Any third-party `uses:` step
 (`actions/checkout`, `actions/setup-java`, `gradle/gradle-build-action`, …) causes a
 `startup_failure` — the workflow never runs a single step and nothing reaches Maven Central. So
 `publish.yml` is **entirely `run:` steps**: checkout via `git clone --depth=1 --branch <tag>`,
@@ -229,7 +255,8 @@ failed to start.)
 2. **Maven Central namespace verification.** The groupId is `io.github.jrmarcum`. The
    `io.github.<user>` namespace is verified on the Central Portal by linking the `jrmarcum` GitHub
    account (Central Portal → Add Namespace → `io.github.jrmarcum` → verify via the generated TXT/repo
-   challenge). The namespace must show **Verified** before any publish succeeds.
+   challenge). The namespace must show **Verified** before any publish succeeds. The 2026-10 move of
+   the repo to the `synapticforge1` org does not affect this namespace, which is tied to the account.
 
 3. **Central Portal account + user token.** Create a Sonatype **Central Portal** account
    (central.sonatype.com), generate a **user token** (Account → Generate User Token) — its name/secret

@@ -1,4 +1,9 @@
 > **⚠️ PORTABLE PROJECT MEMORY NOW LIVES IN `cmem/`** — start at [`cmem/INDEX.md`](cmem/INDEX.md).
+
+> **At session start, read `../../cmem/handoffs.md` for letters addressed to this repo.** The workspace
+> session (`../../cmem/INDEX.md`) reviews across the sibling repos and reports there; nothing is ever
+> written into this repo from outside. (owner directive, 2026-09-20)
+
 > When saving new project memory, write it into the matching `cmem/` topic file (and refresh its
 > pointer in `cmem/INDEX.md`). The **"update the project memory"** and **"look for code issues"**
 > triggers are defined in `cmem/INDEX.md` and are binding. This `CLAUDE.md` remains as the auto-loaded
@@ -91,7 +96,8 @@ Host import callbacks need linear memory for string decoding, but memory is only
 
 ## Project Overview
 
-**Artifact:** `com.jrmarcum:universal-wasm-loader-jvm`
+**Repository:** `https://github.com/synapticforge1/universalWasmLoader-jvm` (moved from `jrmarcum` to the `synapticforge1` org; verified 2026-10-20. See `cmem/overview.md` → "Repository home")
+**Artifact:** `io.github.jrmarcum:universal-wasm-loader-jvm` (groupId unchanged by the move)
 **Version:** See `build.gradle.kts`
 **License:** See `LICENSE`
 **Reference implementation:** `universalWasmLoader-js` (JSR)
