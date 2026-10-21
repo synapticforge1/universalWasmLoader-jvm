@@ -1,14 +1,17 @@
 # Publish to Maven Central (Sonatype Central Portal) on a v* tag.
 #
 # ┌─────────────────────────────────────────────────────────────────────────────┐
-# │ run:-ONLY WORKFLOW — DO NOT REINTRODUCE `uses:` STEPS.                       │
+# │ run:-ONLY WORKFLOW (historical constraint, now kept by choice).             │
 # │                                                                             │
-# │ This org's Actions policy permits ONLY actions owned by `jrmarcum`. Any     │
-# │ third-party `uses:` step (actions/checkout, actions/setup-java,             │
-# │ gradle/gradle-build-action, …) triggers a `startup_failure`: the workflow   │
-# │ never runs a single step, so nothing reaches Maven Central. Every step here │
-# │ MUST therefore be a plain `run:` step — checkout via `git clone`, install   │
-# │ the JDK via `run:`, and use the committed Gradle wrapper (`./gradlew`).      │
+# │ Under the personal `jrmarcum` account, the Actions policy permitted ONLY    │
+# │ `jrmarcum`-owned actions, so any third-party `uses:` step (actions/checkout,│
+# │ actions/setup-java, …) caused a `startup_failure`. Every step here is       │
+# │ therefore a plain `run:` step — checkout via `git clone`, install the JDK   │
+# │ via `run:`, and use the committed Gradle wrapper (`./gradlew`).              │
+# │                                                                             │
+# │ Since the move to the `synapticforge1` org (2026-10), the org policy is     │
+# │ "Allow all actions and reusable workflows", so `uses:` steps would now be   │
+# │ allowed. The run:-only form is kept because it is the proven release path.  │
 # └─────────────────────────────────────────────────────────────────────────────┘
 #
 # Required GitHub repository secrets (Settings → Secrets and variables → Actions):

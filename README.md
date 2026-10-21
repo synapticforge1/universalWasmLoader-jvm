@@ -202,10 +202,10 @@ Pushing the `v*` tag runs `.github/workflows/publish.yml`, which tests, then pub
 artifacts to **Maven Central** (Sonatype Central Portal) via the `com.vanniktech.maven.publish`
 plugin, then cuts a GitHub Release.
 
-> **`run:`-only workflow.** This org's Actions policy permits only `jrmarcum`-owned actions, so the
-> publish workflow uses **no third-party `uses:` steps** — checkout is `git clone`, the JDK is
-> installed via `run:`, and the committed Gradle wrapper drives the build. Reintroducing any `uses:`
-> step would cause a `startup_failure`.
+> **`run:`-only workflow.** The publish workflow uses **no third-party `uses:` steps**: checkout is
+> `git clone`, the JDK is installed via `run:`, and the committed Gradle wrapper drives the build.
+> This started as a requirement, because an earlier Actions policy blocked third-party actions. The
+> current org allows all actions, so the `run:`-only form is now kept by choice.
 
 ### Owner setup required before the first release
 

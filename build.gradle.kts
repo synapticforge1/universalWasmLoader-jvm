@@ -103,7 +103,7 @@ mavenPublishing {
     pom {
         name.set("Universal WASM Loader JVM")
         description.set("A lightweight, zero-dependency WebAssembly loader for JVM languages.")
-        url.set("https://github.com/jrmarcum/universalWasmLoader-jvm")
+        url.set("https://github.com/synapticforge1/universalWasmLoader-jvm")
         licenses {
             license {
                 name.set("MIT License")
@@ -118,9 +118,9 @@ mavenPublishing {
             }
         }
         scm {
-            connection.set("scm:git:git://github.com/jrmarcum/universalWasmLoader-jvm.git")
-            developerConnection.set("scm:git:ssh://github.com/jrmarcum/universalWasmLoader-jvm.git")
-            url.set("https://github.com/jrmarcum/universalWasmLoader-jvm")
+            connection.set("scm:git:git://github.com/synapticforge1/universalWasmLoader-jvm.git")
+            developerConnection.set("scm:git:ssh://github.com/synapticforge1/universalWasmLoader-jvm.git")
+            url.set("https://github.com/synapticforge1/universalWasmLoader-jvm")
         }
     }
 }

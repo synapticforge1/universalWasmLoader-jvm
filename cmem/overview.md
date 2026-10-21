@@ -15,8 +15,8 @@ by camelCase WIT export names. It is the JVM-side equivalent of the JS reference
 - **Async dependency:** `kotlinx-coroutines-core` 1.9.0 (for `wasmImport` URL loading and `InstancePool`).
 - **Package registry:** **Maven Central** (Sonatype Central Portal) via the
   `com.vanniktech.maven.publish` plugin. Coordinates: `io.github.jrmarcum:universal-wasm-loader-jvm`
-  (the README still shows the older `com.jrmarcum:...` groupId — `build.gradle.kts` is authoritative:
-  group `io.github.jrmarcum`). Current version: **0.1.2** (`build.gradle.kts`). **FIRST RELEASE
+  (`build.gradle.kts` is authoritative: group `io.github.jrmarcum`, unchanged by the 2026-10 move to
+  the `synapticforge1` org; the README matches). Current version: **0.1.2** (`build.gradle.kts`). **FIRST RELEASE
   PUBLISHED 2026-06-24** — `0.1.2` was published to Maven Central (Central Portal deployment reached
   `PUBLISHED` after a manual Publish click; mirror sync to `repo1.maven.org` lags ~15 min–few hours
   after that). See Release flow below for the secret/credential gotchas that blocked the first attempt.
@@ -33,17 +33,24 @@ by camelCase WIT export names. It is the JVM-side equivalent of the JS reference
   lives, and the namespace is already verified. Moving to `io.github.synapticforge1` would be a
   breaking coordinate change and would need a new namespace verification. That is the owner's call
   and is not planned. The Kotlin package `com.jrmarcum.universalwasmloader` is also unchanged.
-- **Stale references still pointing at `jrmarcum/…`** (they still work through the redirect, but
-  should be updated when someone next touches them; as of 2026-10-20):
-  - local `origin` remote → `git remote set-url origin https://github.com/synapticforge1/universalWasmLoader-jvm.git`
-  - `build.gradle.kts` POM `url` / `scm.connection` / `scm.developerConnection` / `scm.url`
-    (these are baked into every published POM, so fix them before the next release)
-  - the header comment in `.github/workflows/publish.yml` ("actions owned by `jrmarcum`")
-  - `VISION.md` link to `github.com/jrmarcum/wasmtk` (that repo may have moved as well; check it)
-- **Things to re-verify after the move:** repository secrets (`MAVEN_CENTRAL_*`, `GPG_*`) normally
-  move with the repo, but confirm they are there before the next tag push. The Actions allow-list
-  now comes from the **`synapticforge1` org's** policy, not the personal account's (see the `run:`-only
-  section below).
+- **References updated for the move (2026-10-20):**
+  - The local `origin` remote now points at `https://github.com/synapticforge1/universalWasmLoader-jvm.git`
+    (`git ls-remote` confirmed it). This is machine-local, so every other clone must run
+    `git remote set-url origin …` itself.
+  - `build.gradle.kts`: the POM `url`, `scm.connection`, `scm.developerConnection` and `scm.url` now
+    use `synapticforge1`. The first release that carries them will be the next one after `0.1.2`;
+    POMs that are already published still say `jrmarcum` and cannot be changed. The POM developer
+    `id` stays `jrmarcum`, because it names the person, not the repo.
+  - The header comment in `.github/workflows/publish.yml` now says the `jrmarcum`-only policy was
+    recorded before the move.
+  - The `VISION.md` link to `github.com/jrmarcum/wasmtk` is left as it is: `wasmtk` has not moved
+    (that URL returned `200`, not a redirect, on 2026-10-20).
+- **Repository secrets came across with the move.** The owner confirmed on 2026-10-20 that
+  `MAVEN_CENTRAL_USERNAME`, `MAVEN_CENTRAL_PASSWORD`, `GPG_PRIVATE_KEY` and `GPG_PASSPHRASE` are present
+  in the `synapticforge1` repo.
+- **Org Actions policy:** the owner confirmed on 2026-10-20 that the `synapticforge1` org is set to
+  **"Allow all actions and reusable workflows"**. The old restriction to `jrmarcum`-owned actions no
+  longer applies (see the `run:`-only section below).
 
 ## Source layout
 
@@ -227,10 +234,15 @@ Central Portal auth). Causes to check, in order:
 
 ### `run:`-only workflow (Actions policy)
 
-This policy was recorded 2026-06-24, when the repo lived under the personal account `jrmarcum`. Since
-the move to `synapticforge1`, the **org's** Actions policy governs, and it has not been re-checked
-(2026-10-20). Keep the workflow `run:`-only until someone confirms the org's policy.
-The account's Actions policy permitted **only `jrmarcum`-owned actions**. Any third-party `uses:` step
+**Update 2026-10-20: this constraint is now HISTORICAL.** Since the move to `synapticforge1`, the org's
+Actions policy is **"Allow all actions and reusable workflows"** (owner-confirmed 2026-10-20), so
+`uses:` steps would no longer cause a `startup_failure`. `publish.yml` stays `run:`-only **by choice**,
+because that is the path that published `0.1.2`. Bringing back `uses:` steps is now allowed, but it
+changes a release path that is known to work, so test it with a `workflow_dispatch` run first. The
+workflow's header comment was reworded on 2026-10-20 to say this.
+
+History (recorded 2026-06-24, under the personal account `jrmarcum`):
+the account's Actions policy permitted **only `jrmarcum`-owned actions**. Any third-party `uses:` step
 (`actions/checkout`, `actions/setup-java`, `gradle/gradle-build-action`, …) causes a
 `startup_failure` — the workflow never runs a single step and nothing reaches Maven Central. So
 `publish.yml` is **entirely `run:` steps**: checkout via `git clone --depth=1 --branch <tag>`,
