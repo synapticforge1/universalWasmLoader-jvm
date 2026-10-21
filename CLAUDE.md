@@ -76,11 +76,10 @@ Host import callbacks need linear memory for string decoding, but memory is only
 
 ### Pending work
 
-- **Set GitHub secrets before first release** — Publishing is fully wired. Four secrets are needed in the repo settings:
-  - `MAVEN_CENTRAL_USERNAME` / `MAVEN_CENTRAL_PASSWORD` — from central.sonatype.com → Account → User Token
-  - `GPG_PRIVATE_KEY` — ASCII-armored private key: `gpg --export-secret-keys --armor KEY_ID`
-  - `GPG_PASSPHRASE` — the key's passphrase
-  Then push a `v*` tag to trigger the CI publish job.
+- ~~Set GitHub secrets before first release~~ — **DONE.** `0.1.2` was published 2026-06-24. After the
+  repo moved to the `synapticforge1` org, the owner confirmed on 2026-10-20 that all four secrets
+  (`MAVEN_CENTRAL_USERNAME`, `MAVEN_CENTRAL_PASSWORD`, `GPG_PRIVATE_KEY`, `GPG_PASSPHRASE`) came across.
+  The org's Actions policy is "Allow all actions and reusable workflows". See `cmem/overview.md`.
 
 ### Design principles (binding for all future work)
 
