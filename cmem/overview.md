@@ -1,281 +1,165 @@
 # Overview — universalWasmLoader-jvm
 
+What it is, decided, and why. State and open items live in [open-work.md](open-work.md) only.
+Rewritten 2026-10-26 (memory conformance; the narrative it replaces: `git show 0af04cb:cmem/overview.md`;
+the old `CLAUDE.md` body it absorbed: `git show 0af04cb:CLAUDE.md`).
+
 ## What it is
 
 The **JVM (Java/Kotlin) port** of the Universal WASM Loader. It loads a `.wasm` module, auto-detects
-the companion `.wit` file, applies the Canonical/Wasic ABI, and returns an ABI-translated handle keyed
-by camelCase WIT export names. It is the JVM-side equivalent of the JS reference loader
-(`@jrmarcum/universalwasmloader`, JSR) — the same conceptual `wasmImport` / `createSingleton` /
-`InstancePool` surface, expressed idiomatically for the JVM.
+the companion `.wit` file, applies the Canonical ABI, and returns a handle keyed by camelCase WIT
+export names — the JVM equivalent of the reference loader, universalWasmLoader-js, whose
+`SPEC.md` (v3.0.0) is the one spec text; this repo links it and keeps no copy (since 2026-10-26).
 
-- **Language:** Kotlin (consumable from Java 17+, Kotlin, Scala, Clojure, any JVM language).
-- **WASM runtime:** **Chicory** (`com.dylibso.chicory:runtime` + `:wasm`, v1.0.0) — a pure-Java WASM
-  runtime, chosen so the loader is truly universal across JVM platforms with **no native code** (JNI
-  alternatives like `wasmtime-java` were rejected because they need a per-platform `.dll`/`.so`/`.dylib`).
-- **Async dependency:** `kotlinx-coroutines-core` 1.9.0 (for `wasmImport` URL loading and `InstancePool`).
-- **Package registry:** **Maven Central** (Sonatype Central Portal) via the
-  `com.vanniktech.maven.publish` plugin. Coordinates: `io.github.jrmarcum:universal-wasm-loader-jvm`
-  (`build.gradle.kts` is authoritative: group `io.github.jrmarcum`, unchanged by the 2026-10 move to
-  the `synapticforge1` org; the README matches). Current version: **0.1.2** (`build.gradle.kts`). **FIRST RELEASE
-  PUBLISHED 2026-06-24** — `0.1.2` was published to Maven Central (Central Portal deployment reached
-  `PUBLISHED` after a manual Publish click; mirror sync to `repo1.maven.org` lags ~15 min–few hours
-  after that). See Release flow below for the secret/credential gotchas that blocked the first attempt.
-- **Toolchain:** Gradle 9.x (Kotlin DSL), Kotlin 2.2.0, JVM target 24, JDK 25 toolchain (requires JDK 24+).
+- **Language:** Kotlin, consumable from any JVM language. **Requires Java 24+** (bytecode target 24,
+  JDK 25 toolchain; the README's old "Java 17+" was wrong, fixed 2026-10-26).
+- **WASM runtime:** **Chicory 1.0.0** (`runtime`, `wasm`, `wasi`) — pure Java, no native code, so it
+  runs on every JVM platform. Rejected: `wasmtime-java` (JNI, a native library per platform).
+- **Other dependency:** `kotlinx-coroutines-core` 1.9.0 (`wasmImport`, `InstancePool`).
+- **Toolchain:** Gradle 9.x (Kotlin DSL, wrapper committed), Kotlin 2.2.0, JUnit 5.
 
-## Repository home (moved to the `synapticforge1` org, verified 2026-10-20)
+## Repository home and coordinates
 
-- **Canonical repo:** `https://github.com/synapticforge1/universalWasmLoader-jvm`. The owner moved it
-  from the personal account `jrmarcum` to the `synapticforge1` organization, which the owner controls.
-  Verified 2026-10-20: `https://github.com/jrmarcum/universalWasmLoader-jvm` answers
-  `301 → https://github.com/synapticforge1/universalWasmLoader-jvm`.
-- **What did NOT change:** the Maven groupId stays **`io.github.jrmarcum`**. A Central Portal
-  `io.github.<name>` namespace is verified against a GitHub *account*, not against where a repo
-  lives, and the namespace is already verified. Moving to `io.github.synapticforge1` would be a
-  breaking coordinate change and would need a new namespace verification. That is the owner's call
-  and is not planned. The Kotlin package `com.jrmarcum.universalwasmloader` is also unchanged.
-- **References updated for the move (2026-10-20):**
-  - The local `origin` remote now points at `https://github.com/synapticforge1/universalWasmLoader-jvm.git`
-    (`git ls-remote` confirmed it). This is machine-local, so every other clone must run
-    `git remote set-url origin …` itself.
-  - `build.gradle.kts`: the POM `url`, `scm.connection`, `scm.developerConnection` and `scm.url` now
-    use `synapticforge1`. The first release that carries them will be the next one after `0.1.2`;
-    POMs that are already published still say `jrmarcum` and cannot be changed. The POM developer
-    `id` stays `jrmarcum`, because it names the person, not the repo.
-  - The header comment in `.github/workflows/publish.yml` now says the `jrmarcum`-only policy was
-    recorded before the move.
-  - The `VISION.md` link to `github.com/jrmarcum/wasmtk` is left as it is: `wasmtk` has not moved
-    (that URL returned `200`, not a redirect, on 2026-10-20).
-- **Repository secrets came across with the move.** The owner confirmed on 2026-10-20 that
-  `MAVEN_CENTRAL_USERNAME`, `MAVEN_CENTRAL_PASSWORD`, `GPG_PRIVATE_KEY` and `GPG_PASSPHRASE` are present
-  in the `synapticforge1` repo.
-- **Org Actions policy:** the owner confirmed on 2026-10-20 that the `synapticforge1` org is set to
-  **"Allow all actions and reusable workflows"**. The old restriction to `jrmarcum`-owned actions no
-  longer applies (see the `run:`-only section below).
+- **Repo:** `https://github.com/synapticforge1/universalWasmLoader-jvm` — moved from the personal
+  account `jrmarcum` to the org, verified 2026-10-20 (the old URL answers 301). POM `url` / `scm` name
+  the org since 2026-10-20; already-published POMs keep `jrmarcum` (immutable). Org Actions policy:
+  "Allow all actions and reusable workflows" (owner, 2026-10-20). Repository secrets came across.
+- **Maven Central coordinates: `io.github.jrmarcum:universal-wasm-loader-jvm`; Kotlin package
+  `com.jrmarcum.universalwasmloader`.** 🔒 **Owner, 2026-10-26: both STAY.** The Central Portal
+  namespace `io.github.jrmarcum` is verified against the `jrmarcum` GitHub account, not against where
+  the repo lives. A move to `io.github.synapticforge1` (groupId + package, as 0.2.0) was built the
+  same day, 26/26 tests green, and reverted before any commit. Do not reopen it. The portal is
+  **central.sonatype.com** (the retired OSSRH hosts `oss.sonatype.org` / `s01.oss.sonatype.org` are
+  not it). The POM developer `id` is `jrmarcum` (it names the person).
+
+## Design principles (binding; from the old `CLAUDE.md`, see `VISION.md` for the cross-project directives)
+
+1. `wasmLoad(path)` is synchronous — no coroutine for local file loading.
+2. Both `m.call("fn", args…)` and `wasmLoad<T>(path)` must work.
+3. No options objects, no ABI flags, no explicit WIT paths — zero configuration.
+4. Version pinning `@N` follows the C SONAME convention, not Maven versioning.
+5. `createSingleton` and `InstancePool` share the same minimal signature.
+6. All project memory lives in `cmem/` (committed, portable); nothing in machine-local stores
+   except the gitignored `cmem/local/`.
 
 ## Source layout
 
 ```
 src/main/kotlin/com/jrmarcum/universalwasmloader/
-├── UniversalWasmLoader.kt   # Public API + ModuleHandle + string-return decode + load/instantiate helpers
-├── Abi.kt                   # ABI encode/decode, MemRef, StringAbi enum, buildEnvFunctions (env HostFunctions)
-├── Callbacks.kt             # Host import callback builder (.on(camelName){...} 0–3 arg overloads)
-└── WitParser.kt             # Regex-based, zero-dependency WIT parser
-src/test/kotlin/.../LoaderTest.kt   # 26 @Test cases (mirrors SPEC §8; incl. 2 §10 tests)
-src/test/resources/tests/           # math_50 / booleans_50 / strings_50 / imports_50 (.wasm + .wit)
-                                     # + init_check.wasm, wasi_io_50.{wasm,wit} (§10 fixtures)
+├── UniversalWasmLoader.kt   # public API, ModuleHandle, string-return decode, load/instantiate helpers
+├── Abi.kt                   # encode/decode, MemRef, StringAbi, buildEnvFunctions (env HostFunctions)
+├── Callbacks.kt             # host import callbacks, .on(camelName) { … } with 0–3 args
+└── WitParser.kt             # regex WIT parser, no dependencies (internal)
+src/test/kotlin/.../LoaderTest.kt    # 27 tests: SPEC §8, two §10, one fixture-stamp check
+src/test/resources/tests/            # the stamped reference fixtures + fixtures.json (see Tests)
+api/universal-wasm-loader-jvm.api    # the public API snapshot (compat gate Rule 1)
+api/v0.1.2.api                       # the released surface of v0.1.2, generated from the tag
+scripts/compat.main.kts              # compatibility gate + version bump (replaced bump.sh)
 ```
 
-## Public API surface (what actually exists)
+## Public API (the `api/` snapshot is the authoritative list)
 
-All in `UniversalWasmLoader.kt` unless noted.
+- `wasmLoad(path, callbacks = Callbacks()): ModuleHandle` — **synchronous**, file or classpath only;
+  `.wasm` → `.wit` auto-detect; `@N` suffix asserts an exported i32 global `version` == N (found by
+  iterating the export section for `"version"` with `ExternalType.GLOBAL`).
+- `wasmLoad<T>(path, callbacks): T` — reified inline; a `java.lang.reflect.Proxy` over interface `T`,
+  each method dispatching to `call(method.name, …)`. ⚠️ Being inline-reified it is NOT in the ABI
+  snapshot; the previous-tag tests guard it ([compat-gate.md](compat-gate.md)).
+- `suspend wasmImport(source, callbacks): ModuleHandle` — also `http(s)://` (fetches `.wasm`, then a
+  best-effort `.wit` via `HttpClient`). ⚠️ Masks HTTP errors — [open-work.md](open-work.md).
+- `createSingleton(path, callbacks): () -> ModuleHandle` — Kotlin `lazy {}`.
+- `InstancePool(path, callbacks, size = 4)` — `size` independent instances; `Semaphore` +
+  `ArrayBlockingQueue`; `acquire()`, `release(h)`, `run(fn)` (releases even on throw).
+- `ModuleHandle.call(name, vararg args)`, `.bind(name): BoundFunction`, `.isSameInstance(other)`.
+- `Callbacks().on("camelName") { … }` — keys are camelCase WIT import names.
 
-- `wasmLoad(path, callbacks = Callbacks()): ModuleHandle` — **synchronous**, local file / classpath
-  resource only. Primary entry point (no coroutine needed). Auto-detects `.wit` (`.wasm`→`.wit`).
-  Supports `@N` version pinning (asserts an exported `version` i32 global == N; C SONAME convention).
-- `wasmLoad<T>(path, callbacks): T` — reified-generic typed-interface variant. Wraps the handle in a
-  `java.lang.reflect.Proxy` implementing interface `T`; each method dispatches to `handle.call(method.name, …)`.
-- `wasmImport(source, callbacks): ModuleHandle` — **suspend** fun (coroutines). Same as `wasmLoad`
-  but also accepts `http://`/`https://` URLs (fetches `.wasm` and best-effort `.wit` via `HttpClient`).
-- `createSingleton(path, callbacks): () -> ModuleHandle` — lazy-cached single handle (Kotlin `lazy{}`).
-- `class InstancePool(path, callbacks, size = 4)` — pre-instantiates `size` independent instances
-  (each own linear memory); coroutine-safe via `kotlinx.coroutines.sync.Semaphore` + `ArrayBlockingQueue`.
-  Methods: `suspend acquire()`, `release(handle)`, `suspend run(fn)` (acquire→call→release, even on throw).
-- `class ModuleHandle` — `call(name, vararg args): Any?`, `bind(name): BoundFunction`,
-  `isSameInstance(other): Boolean`. `BoundFunction.invoke(vararg args)` wraps a single export.
-- `class Callbacks` — builder `.on("camelName") { … }` (0–3 args); keys are camelCase WIT import names
-  (`env-mul` → `envMul`).
+**Names (critical):** exports are looked up by **camelCase** (`is-positive` → `isPositive`), which is
+also the JVM API name — no snake_case step (unlike -rs). Chicory's `env` import field is underscore
+(`env-mul` → `env_mul`); the callback key is camelCase (`envMul`). Never look an export up by its
+kebab or snake form.
 
-### Name conventions (critical)
-WASM exports are looked up by **camelCase** (`is-positive` → `isPositive`), which is also the JVM API
-name (no snake_case conversion, unlike the Rust port). Chicory host-import namespace key is underscore
-(`env-mul` → `env_mul`); user callback key is camelCase (`envMul`).
+## ABI
 
-## ABI implemented
+`s32`↔Int, `s64`↔Long, `f32`↔Float, `f64`↔Double, `bool`↔(`!= 0`); strings UTF-8. The string ABI
+is detected at instantiation from the export section (`detectStringAbi`):
 
-`Abi.kt` + `ModuleHandle.callWithAbi`/`decodeStringReturn`. Numeric/bool marshalling:
-`s32`↔Int, `s64`↔Long, `f32`↔Float, `f64`↔Double, `bool`↔(`!=0`). Strings are UTF-8.
+- **CANONICAL** (`cabi_realloc` exported) — params: `cabi_realloc(0,0,1,len)` → write → `(ptr,len)`.
+  Returns (SPEC 3.0.0, callee-allocated): the export returns an i32 `retArea`; read the LE
+  `(ptr,len)` pair there, decode, then call `cabi_post_<camelName>(retArea)` if exported. Aligned
+  2026-06-15 in `a434c6d` (it replaced the 2.x caller-allocated out-parameter).
+- **WASIC** (`__malloc` exported) — params via `__malloc(len)`; returns read from the i32 globals
+  `__str_ret_ptr` / `__str_ret_len` after a void call. Legacy fallback; no current fixture uses it.
+- **NONE** — numerics and bool work; strings throw.
 
-The loader **auto-detects one of two string ABIs** at instantiation (`detectStringAbi`, scans the
-export section):
+Import string params (WASM → host) are decoded via `MemRef.current`, set to `instance.memory()`
+right after `Instance.build()` (memory exists only after instantiation).
 
-- **`StringAbi.CANONICAL`** — when `cabi_realloc` is exported. String **params**: `cabi_realloc(0,0,1,len)`
-  → write bytes → pass `(ptr,len)`.
-- **`StringAbi.WASIC`** — when `__malloc` is exported (the current `strings_50` fixture uses this).
-  String **params**: `__malloc(len)` → write bytes → pass `(ptr,len)`.
-- **`StringAbi.NONE`** — neither (numeric/bool still work; strings throw).
+## SPEC §10 — producer model (2026-07-05, `1e1ecb8`)
 
-Import string params (WASM→host) are decoded from `(ptr,len)` off the call stack via `MemRef.current`
-(memory captured right after `Instance.build()`, solving the chicken-and-egg of needing memory inside
-import callbacks).
-
-## ✅ SPEC 3.0.0 CONFORMANCE — DONE (string RETURNS, callee-allocated, 2026-06-15)
-
-The cross-language **`SPEC.md` is at v3.0.0** — a **BREAKING** change. String
-**returns** moved from the old **caller-allocated out-parameter** convention to the **canonical
-callee-allocated** convention: the export returns an **i32 pointer to a callee-allocated `[ptr,len]`
-pair**; the host reads the pair, then calls a paired `cabi_post_<name>(retArea)` export (if present)
-to let the module free that allocation.
-
-**This port now implements SPEC 3.0.0 for the CANONICAL profile** (aligned 2026-06-15, VERIFIED via
-`./gradlew test` → 24/24 pass, 0 skipped). String-return decoding:
-
-- **`UniversalWasmLoader.kt` — `ModuleHandle.decodeStringReturn(name, wasmFn, wasmArgs)`.**
-  - `StringAbi.CANONICAL` branch: calls the export with **only** the encoded params, captures the
-    single **i32** result `retArea`, reads the little-endian `(ptr,len)` pair from `retArea` /
-    `retArea+4`, decodes the UTF-8 bytes, then calls **`cabi_post_<name>(retArea)`** (looked up via
-    `findExportByName`; skipped if absent), where `<name>` is the camelCase export name. No trailing
-    return-area out-param is passed anymore.
-  - `StringAbi.WASIC` branch: **unchanged** — still reads exported globals `__str_ret_ptr` /
-    `__str_ret_len` (side-channel) after a void call. Kept as a legacy/compat fallback.
-- `Abi.witTypeToReturnTypes(type, stringAbi = StringAbi.NONE)` is now **profile-aware**: a CANONICAL
-  `string` return maps to a single **i32** result; non-CANONICAL string returns keep `emptyList()`
-  (the void side-channel). `buildEnvFunctions` (formerly `buildImportEnv`) calls it without
-  `stringAbi` (defaults to `NONE`), so host-import callback returns are unaffected.
-
-**Fixture:** `src/test/resources/tests/strings_50.{wasm,wit}` was replaced with the new-ABI fixture
-from wasmtk (`tests/bindgen_fixtures/strings_50.*`). The new `.wasm` exports `cabi_realloc` (CANONICAL,
-not `__malloc`) plus `cabi_post_greet` / `cabi_post_shout`; export names are camelCase (`greet`,
-`shout`, `strLen`). `math_50` / `booleans_50` / `imports_50` fixtures are untouched. The string
-conformance tests still assert `greet("World")=="Hello, World!"`, `shout("hi")=="hihi"`,
-`strLen("hello")==5` and pass against the new fixture.
-
-String **params** are unchanged (`cabi_realloc(0,0,1,len)` → write → `(ptr,len)`). Numerics/bool
-unchanged. Local `SPEC.md` bumped v2.0.0 → 3.0.0 with the callee-allocated return section.
+- **§10.1** — a reactor's `_initialize` is called once after instantiation, before any other export.
+  A behaviour change since `v0.1.2`: README Breaking Changes row `_next release_`.
+- **§10.2** — Chicory's first-party `WasiPreview1` (`WasiOptions.builder().inheritSystem()`) supplies
+  `wasi_snapshot_preview1`; its host functions are merged with the `env` ones into one `ImportValues`,
+  so a `modc` library that calls `console.log` loads on a plain JVM.
 
 ## Tests
 
-JUnit 5 (`./gradlew test`). `LoaderTest.kt` has **26 `@Test`** cases mirroring SPEC §8, exercising the
-four fixtures: `math_50` (numeric round-trip), `booleans_50` (bool normalization), `strings_50`
-(string param + return, WASIC ABI), `imports_50` (host import callbacks). No-WIT raw mode is covered by
-the repo-root `math.wasm` (numeric, no `.wit`).
+`./gradlew check` runs the 27 tests (and the API snapshot check). Read counts from
+`build/test-results/test/*.xml`. **27 / 27 on 2026-10-26.**
 
-## SPEC §10 — producer model (loader capabilities), added 2026-07-05 (`1e1ecb8`)
+- **Fixtures = the stamped reference set (workspace H7 / C11, 2026-10-26)**, copied unmodified from
+  universalWasmLoader-js `36aa661` (on its `origin/main`): the five `*_50` `.wasm`/`.wit` pairs,
+  `init_check.wat`/`.wasm` and `fixtures.json`, generated by wasmtk `modc` at `4a5c3cf668d`
+  (`v2.0.3-64-g4a5c3cf`). Copy the stamp, never regenerate it: `describe` is not reproducible across
+  clones (loader-dart's finding). Before this, 7 of 11 files differed from the set (all five
+  `*_50.wasm`, `booleans_50.wit`, `imports_50.wit`); the tests passed on both.
+- **`fixtures match the stamp in fixtures json`** checks every listed sha256 and refuses any
+  `.wasm`/`.wit`/`.wat` the stamp does not list; inverted 2026-10-26 (a one-byte change and a stray
+  file → "bytes differ", "not in the stamp").
+- Raw mode (no `.wit`) returns `Long`; tests normalize with `(… as Number).toInt()`.
 
-- **§10.1** — after instantiation, `UniversalWasmLoader.kt` calls a reactor module's `_initialize`
-  once before any other export (`instance.export("_initialize").apply()` when present; no-op otherwise).
-- **§10.2** — the minimal WASI-P1 surface comes from **`chicory-wasi`** (`implementation("com.dylibso.chicory:wasi:$chicoryVersion")`):
-  a `WasiPreview1` built with `WasiOptions.builder().inheritSystem()`, whose `toHostFunctions()` are
-  merged with the `env` host functions (`Abi.buildEnvFunctions`, refactored from the old
-  `buildImportEnv` to return `List<HostFunction>`) into one `ImportValues`. So an I/O-using library
-  module (a `modc` lib calling `console.log` → `fd_write`) loads on a plain JVM with no native WASI.
-  Uses Chicory's first-party WASI rather than a hand-rolled shim.
-- **Tests:** `SPEC 10_1 initialize called after instantiation` (`getValue()==99`, raw path — note
-  raw-mode returns `Long`, so `(… as Number).toInt()`) and `SPEC 10_2 wasi io library loads`
-  (`logAndDouble(21)==42`), fixtures `init_check.wasm` + `wasi_io_50.{wasm,wit}` in
-  `src/test/resources/tests/`.
+## Build and release
 
-## Build / release flow
+- **Version source of truth:** the `version = "X.Y.Z"` line in `build.gradle.kts`; nothing else holds it.
+- **Bump through the gate:** `./gradlew bump [-Pkind=minor|major]` → `kotlin scripts/compat.main.kts
+  bump <kind>`; it refuses a bump below the floor ([compat-gate.md](compat-gate.md)).
+- **Release (owner action):** commit the bump, `./gradlew release` (tags `v<version>`, force-pushes the
+  tag) → `publish.yml`: clone the tag + fetch tags → JDK 24+ → `kotlin` → `./gradlew check` →
+  compat `selftest` + `release` → `publishAllPublicationsToMavenCentralRepository` (vanniktech,
+  Central Portal, GPG in-memory signing) → `release/v<version>` branch → `gh release create`.
+  `workflow_dispatch` exists: pick the TAG in the ref dropdown to reproduce a tag run. `ci.yml`
+  runs `check` + the self-test on push to `main` and on PRs (added 2026-10-26).
+- ⚠️ **Central Portal does not auto-publish**: the upload lands `VALIDATED` and needs the **Publish**
+  button at central.sonatype.com → Deployments (this held `0.1.2`). `automaticRelease = true` in
+  `publishToMavenCentral(...)` would remove the click (owner call, not set).
+- **Publishing path (workspace H20, recorded 2026-10-26):** a Central Portal **user token** + a GPG key,
+  held in four repository secrets — NOT trusted publishing / OIDC, so no policy pins GitHub owner or
+  repository ids and the org move needs no policy change. `0.1.2` was published 2026-06-24, before the
+  move; the next release is the first from the org (secrets confirmed present 2026-10-20).
+- **Workflows are `run:`-only by choice** (the old `jrmarcum` account allowed only its own actions;
+  the org allows all since 2026-10-20). Changing the proven release path wants a `workflow_dispatch`
+  test first.
 
-**Version source of truth:** the top-level `version = "X.Y.Z"` line in `build.gradle.kts`. Nothing
-else holds the version, so a bump touches exactly that one line.
+### Credentials (✅ set up 2026-06-24; reference for re-keying)
 
-**Bump** (mirrors the -js `deno task bump` UX, patch/minor/major, patch default):
+| GitHub secret | → `ORG_GRADLE_PROJECT_…` | What it is |
+| --- | --- | --- |
+| `MAVEN_CENTRAL_USERNAME` | `mavenCentralUsername` | Central Portal user-token NAME |
+| `MAVEN_CENTRAL_PASSWORD` | `mavenCentralPassword` | Central Portal user-token SECRET |
+| `GPG_PRIVATE_KEY` | `signingInMemoryKey` | ASCII-armored private key, whole block |
+| `GPG_PASSPHRASE` | `signingInMemoryKeyPassword` | its passphrase |
 
-```sh
-./gradlew bump                 # patch:  0.1.2 -> 0.1.3  (default)
-./gradlew bump -Pkind=minor    # minor:  0.1.2 -> 0.2.0
-./gradlew bump -Pkind=major    # major:  0.1.2 -> 1.0.0
-# equivalently, directly:  ./scripts/bump.sh [patch|minor|major]
-```
+- The first release failed `Invalid token` until the two `MAVEN_CENTRAL_*` secrets held the **two bare
+  values** of the token — not the `<server>` XML, not the base64 `user:pass` blob (the plugin encodes
+  it, so the blob double-encodes) — as **Repository** secrets. Regenerating a token revokes the old one.
+- **GPG key used for `0.1.2`:** RSA-4096, uid = the maintainer's name and address, fingerprint
+  `E4D45440A37F73383B38842FFF9D45E2AFFFFB6D`, public key on `keyserver.ubuntu.com` and
+  `keys.openpgp.org`. The private half lives only in the secrets.
+- Namespace: `io.github.jrmarcum`, verified on the Central Portal via the `jrmarcum` GitHub account.
 
-The Gradle `bump` task delegates to `scripts/bump.sh` (one implementation). The script does a
-sed-anchored replace of ONLY the `^version = "..."` line, so dependency version strings and
-`chicoryVersion` are never touched.
+## Development notes
 
-**Build + test:** `./gradlew build` / `./gradlew test`. Requires JDK 24+ (JVM target 24, JDK 25
-toolchain).
-
-**Release (bump → tag → push → CI publishes):**
-
-```sh
-./gradlew bump                                   # raise the version
-git commit -am "bump version to v0.1.3"          # commit the bump
-./gradlew release                                # tags v<version> and force-pushes the tag
-```
-
-`./gradlew release` tags HEAD `v<version>` and force-pushes the tag, which triggers
-`.github/workflows/publish.yml`: `test` (gate) → `publishAllPublicationsToMavenCentralRepository`
-(publish to Maven Central via `com.vanniktech.maven.publish`, Sonatype Central Portal, GPG-signed)
-→ create `release/v<version>` branch → `gh release create`.
-
-**Manual run from the GitHub UI (`workflow_dispatch`).** Added 2026-06-24: `publish.yml` also has a
-`workflow_dispatch: {}` trigger, so the workflow is runnable from **Actions → Publish → Run workflow**
-without re-pushing a tag. **Select the TAG (e.g. `v0.1.2`) in the ref dropdown**, not `main`, to
-reproduce a tag-push run (clones the tagged commit + runs the release bookkeeping). The two release
-steps (`Create release branch`, `Create GitHub Release`) are guarded by
-`if: startsWith(github.ref, 'refs/tags/')`, so a branch-dispatch publishes the artifact but skips them.
-
-**⚠️ Central Portal does NOT auto-publish by default.** A successful
-`publishAllPublicationsToMavenCentralRepository` only **uploads** the deployment; it lands in
-`VALIDATED` state and requires a **manual "Publish" button click** at central.sonatype.com →
-Deployments to actually release it (this is what blocked `0.1.2` from appearing until the button was
-hit). To skip the click on future releases, set the deployment to auto-publish — either in the Portal
-account settings or via `publishToMavenCentral(SonatypeHost.CENTRAL_PORTAL, automaticRelease = true)`
-in `build.gradle.kts`.
-
-### Credential gotchas that blocked the first release (learned 2026-06-24)
-
-The first release attempts failed repeatedly with `Upload failed: {"error":{"message":"Invalid
-token"}}` at the publish step (build + test + GPG signing all succeeded — the failure was purely
-Central Portal auth). Causes to check, in order:
-
-- The `MAVEN_CENTRAL_USERNAME` / `MAVEN_CENTRAL_PASSWORD` secrets must be the **two bare plain values**
-  from the generated user token — **NOT** the `<server>…</server>` XML block, and **NOT** the
-  **base64 `username:password` blob** the Portal also shows (the plugin base64-encodes internally;
-  pasting the blob double-encodes it → Invalid token).
-- They must be **Repository secrets** under **Settings → Secrets and variables → Actions** (not
-  Environment secrets, not Dependabot secrets, not Variables).
-- Regenerating a user token **revokes the previous one**, so the secrets must hold the *current* token.
-
-**GPG signing key used for `0.1.2`:** RSA-4096, uid `Jon Marcum <jrmarcum.se@gmail.com>`, fingerprint
-`E4D45440A37F73383B38842FFF9D45E2AFFFFB6D` (long id `FF9D45E2AFFFFB6D`), public key published to
-`keyserver.ubuntu.com` + `keys.openpgp.org`. The private key + passphrase live only in the
-`GPG_PRIVATE_KEY` / `GPG_PASSPHRASE` repo secrets (the local exported `.asc` was a scratch file).
-
-### `run:`-only workflow (Actions policy)
-
-**Update 2026-10-20: this constraint is now HISTORICAL.** Since the move to `synapticforge1`, the org's
-Actions policy is **"Allow all actions and reusable workflows"** (owner-confirmed 2026-10-20), so
-`uses:` steps would no longer cause a `startup_failure`. `publish.yml` stays `run:`-only **by choice**,
-because that is the path that published `0.1.2`. Bringing back `uses:` steps is now allowed, but it
-changes a release path that is known to work, so test it with a `workflow_dispatch` run first. The
-workflow's header comment was reworded on 2026-10-20 to say this.
-
-History (recorded 2026-06-24, under the personal account `jrmarcum`):
-the account's Actions policy permitted **only `jrmarcum`-owned actions**. Any third-party `uses:` step
-(`actions/checkout`, `actions/setup-java`, `gradle/gradle-build-action`, …) causes a
-`startup_failure` — the workflow never runs a single step and nothing reaches Maven Central. So
-`publish.yml` is **entirely `run:` steps**: checkout via `git clone --depth=1 --branch <tag>`,
-JDK 24+ installed via `run:` (reuse a preinstalled Temurin 24/25 under `/usr/lib/jvm`, else download
-Temurin 25 from Adoptium), and the committed Gradle wrapper (`./gradlew`). **Do not reintroduce
-`uses:` steps.** (The previous version of this workflow used `actions/setup-java@v4` and would have
-failed to start.)
-
-### Required owner setup (✅ DONE as of 2026-06-24 — kept as reference for re-keying / forks)
-
-1. **GitHub repository secrets** (Settings → Secrets and variables → Actions). The workflow maps
-   each to the `ORG_GRADLE_PROJECT_*` Gradle property the vanniktech plugin reads (in-memory signing
-   + Central Portal upload; no `settings.xml` / `secring.gpg`):
-
-   | GitHub secret | Maps to `ORG_GRADLE_PROJECT_…` | What it is |
-   | --- | --- | --- |
-   | `MAVEN_CENTRAL_USERNAME` | `mavenCentralUsername` | Central Portal **user token** name |
-   | `MAVEN_CENTRAL_PASSWORD` | `mavenCentralPassword` | Central Portal **user token** secret |
-   | `GPG_PRIVATE_KEY` | `signingInMemoryKey` | ASCII-armored GPG **private** key (whole block) |
-   | `GPG_PASSPHRASE` | `signingInMemoryKeyPassword` | passphrase for that GPG key |
-
-2. **Maven Central namespace verification.** The groupId is `io.github.jrmarcum`. The
-   `io.github.<user>` namespace is verified on the Central Portal by linking the `jrmarcum` GitHub
-   account (Central Portal → Add Namespace → `io.github.jrmarcum` → verify via the generated TXT/repo
-   challenge). The namespace must show **Verified** before any publish succeeds. The 2026-10 move of
-   the repo to the `synapticforge1` org does not affect this namespace, which is tied to the account.
-
-3. **Central Portal account + user token.** Create a Sonatype **Central Portal** account
-   (central.sonatype.com), generate a **user token** (Account → Generate User Token) — its name/secret
-   are the `MAVEN_CENTRAL_USERNAME` / `MAVEN_CENTRAL_PASSWORD` values above.
-
-4. **GPG signing key.** Generate a key (`gpg --gen-key`), **publish the public key** to a keyserver
-   (`gpg --keyserver keyserver.ubuntu.com --send-keys <KEYID>` — Central requires the public key to be
-   discoverable to verify signatures), then export the private key
-   (`gpg --armor --export-secret-keys <KEYID>`) into the `GPG_PRIVATE_KEY` secret and its passphrase
-   into `GPG_PASSPHRASE`.
+- **Chicory upgrades:** re-check the `HostFunction` constructor, `Memory` read/write and
+  `Instance.builder` against the release notes.
+- `Memory.readByteArray(ptr, len)` (in `Abi.kt`) reads byte by byte; replace it if Chicory gains a
+  bulk read.
