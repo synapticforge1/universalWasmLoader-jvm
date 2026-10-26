@@ -180,21 +180,30 @@ private suspend fun loadFromUrl(source: String, callbacks: Callbacks): ModuleHan
     val witUrl = cleanUrl.replace(".wasm", ".wit")
     val httpClient = HttpClient.newHttpClient()
 
+    // An HTTP error on the .wasm is reported as one. Without this check a 404 / 500
+    // error page reached Chicory as module bytes and surfaced as a MalformedException.
     val wasmBytes = withContext(Dispatchers.IO) {
-        httpClient.send(
+        val resp = httpClient.send(
             HttpRequest.newBuilder().uri(URI.create(cleanUrl)).build(),
             HttpResponse.BodyHandlers.ofByteArray()
-        ).body()
+        )
+        if (resp.statusCode() !in 200..299) {
+            throw java.io.IOException("wasmImport: HTTP ${resp.statusCode()} for $cleanUrl")
+        }
+        resp.body()
     }
 
+    // SPEC §63: a .wit that cannot be fetched (non-2xx status or a network error)
+    // falls back to raw exports. Only I/O failures are caught, so an interrupt or a
+    // coroutine cancellation is not swallowed.
     val witSource = withContext(Dispatchers.IO) {
         try {
             val resp = httpClient.send(
                 HttpRequest.newBuilder().uri(URI.create(witUrl)).build(),
                 HttpResponse.BodyHandlers.ofString()
             )
-            if (resp.statusCode() == 200) resp.body() else null
-        } catch (_: Exception) {
+            if (resp.statusCode() in 200..299) resp.body() else null
+        } catch (_: java.io.IOException) {
             null
         }
     }
