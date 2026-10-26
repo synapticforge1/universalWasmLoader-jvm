@@ -276,14 +276,22 @@ class LoaderTest {
     // fixed status codes and counts requests per path.
     // ---------------------------------------------------------------------------
 
-    private class FixtureServer(routes: Map<String, Pair<Int, ByteArray>>) : AutoCloseable {
+    /** [stall]: paths that accept the request and never answer, until [close]. */
+    private class FixtureServer(
+        routes: Map<String, Pair<Int, ByteArray>>,
+        stall: Set<String> = emptySet(),
+    ) : AutoCloseable {
         val hits = java.util.concurrent.ConcurrentHashMap<String, Int>()
+        private val release = java.util.concurrent.CountDownLatch(1)
+        private val pool = java.util.concurrent.Executors.newCachedThreadPool()
         private val server = com.sun.net.httpserver.HttpServer.create(
             java.net.InetSocketAddress(java.net.InetAddress.getLoopbackAddress(), 0), 0
         ).apply {
+            executor = pool
             createContext("/") { ex ->
                 val path = ex.requestURI.path
                 hits.merge(path, 1, Int::plus)
+                if (path in stall) { release.await(); ex.close(); return@createContext }
                 val (status, body) = routes[path] ?: (404 to ByteArray(0))
                 ex.sendResponseHeaders(status, if (body.isEmpty()) -1 else body.size.toLong())
                 if (body.isNotEmpty()) ex.responseBody.use { it.write(body) }
@@ -292,7 +300,11 @@ class LoaderTest {
             start()
         }
         val base = "http://127.0.0.1:${server.address.port}"
-        override fun close() = server.stop(0)
+        override fun close() {
+            release.countDown()
+            server.stop(0)
+            pool.shutdownNow()
+        }
     }
 
     private fun bytes(name: String) = java.io.File("src/test/resources/tests/$name").readBytes()
@@ -329,6 +341,41 @@ class LoaderTest {
             val m = kotlinx.coroutines.runBlocking { wasmImport("${srv.base}/math_50.wasm") }
             assertEquals(7, m.call("add", 3, 4)) // WIT path: s32 → Int
             assertEquals(1, srv.hits["/math_50.wasm"])
+            assertEquals(1, srv.hits["/math_50.wit"])
+        }
+    }
+
+    @Test
+    fun `wasmImport has fixed 10 s connect and 30 s response timeouts`() {
+        assertEquals(java.time.Duration.ofSeconds(10), HTTP_CONNECT_TIMEOUT)
+        assertEquals(java.time.Duration.ofSeconds(30), HTTP_RESPONSE_TIMEOUT)
+    }
+
+    @Test
+    @org.junit.jupiter.api.Timeout(10) // a lost timeout must fail the suite, not hang it
+    fun `wasmImport times out on a wasm that never answers`() {
+        FixtureServer(emptyMap(), stall = setOf("/math_50.wasm")).use { srv ->
+            val t0 = System.nanoTime()
+            val e = assertThrows(java.net.http.HttpTimeoutException::class.java) {
+                kotlinx.coroutines.runBlocking {
+                    loadFromUrl("${srv.base}/math_50.wasm", Callbacks(), responseTimeout = java.time.Duration.ofMillis(300))
+                }
+            }
+            val ms = (System.nanoTime() - t0) / 1_000_000
+            assertTrue(e.message!!.startsWith("wasmImport: no response within PT0.3S for ${srv.base}/math_50.wasm"), e.message)
+            assertTrue(ms < 5_000, "gave up after $ms ms")
+            assertNull(srv.hits["/math_50.wit"], "no .wit request after the .wasm failed")
+        }
+    }
+
+    @Test
+    @org.junit.jupiter.api.Timeout(10)
+    fun `wasmImport falls back to raw exports when the wit never answers (SPEC 63)`() {
+        FixtureServer(mapOf("/math_50.wasm" to (200 to bytes("math_50.wasm"))), stall = setOf("/math_50.wit")).use { srv ->
+            val m = kotlinx.coroutines.runBlocking {
+                loadFromUrl("${srv.base}/math_50.wasm", Callbacks(), responseTimeout = java.time.Duration.ofMillis(300))
+            }
+            assertEquals(7, m.call("add", 3, 4)) // raw mode, typed by the wasm signature
             assertEquals(1, srv.hits["/math_50.wit"])
         }
     }
