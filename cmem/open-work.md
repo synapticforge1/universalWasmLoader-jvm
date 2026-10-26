@@ -11,7 +11,11 @@ the same day `repo1.maven.org` still served only 0.1.2 (0.2.0 files 404) — mir
 against `v0.2.0`, its 27 tests green; 31 / 31): tag `v0.2.1` = `ec58eb2`; CI run 40408685419 and
 Publish run 40408929155 green end to end. It carries the `wasmImport` `.wasm` HTTP-error fix and the
 publishing plugin 0.37.0 with automatic publishing — the first release meant to publish itself.
-**0.3.0 bumped through the gate (owner: "yes 0.3.0"):** floor patch against `v0.2.1` (API
+**0.3.0 tagged and uploaded:** tag `v0.3.0` = `33eb176`; CI run 40410899982 and Publish run
+40411608731 green end to end; publishes itself (automatic publishing). **0.2.1 IS PUBLIC** on
+`repo1.maven.org` (metadata `latest=0.2.1`, POM 200, read 18:24 -04:00) — automatic publishing
+works. **0.2.0 is NOT** (POM 404 at the same read, although 0.2.1 uploaded after it is live).
+Bumped through the gate (owner: "yes 0.3.0"): floor patch against `v0.2.1` (API
 unchanged), its 31 tests green; a minor because both changes are behaviour changes with Breaking
 Changes rows (stamped `0.3.0`): raw mode (no `.wit`) typed by the export's wasm signature (float
 results were bit patterns, bad args silently `0`; raw calls measured faster, not slower) and
@@ -19,7 +23,11 @@ results were bit patterns, bad args silently `0`; raw calls measured faster, not
 
 ## Owner actions (🗓️)
 
-- **Is anything newer than 0.1.2 public?** The owner sees 0.2.0 published on the Portal
+- 🔴 **0.2.0 is missing from Maven Central** while 0.2.1 (uploaded later) is live (18:24 -04:00):
+  the 0.2.0 deployment most likely never reached PUBLISHED. Check its state on the Deployments
+  page; if it is VALIDATED, Publish it, if FAILED or dropped, 0.2.0 stays a git tag only (0.2.1 and
+  0.3.0 supersede it; a version on Central cannot be re-uploaded anyway). Then confirm 0.3.0 appears.
+  Earlier record: the owner sees 0.2.0 published on the Portal
   (`https://central.sonatype.com/publishing/deployments`, login required — not readable from here).
   Measured on `repo1.maven.org` the same day at 17:46, 18:03 and 18:12 -04:00: the 0.2.0 and 0.2.1
   POMs 404, the metadata lists only 0.1.2; Central's search index lists only 0.1.2 (17:46). The June
