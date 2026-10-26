@@ -127,7 +127,11 @@ right after `Instance.build()` (memory exists only after instantiation).
   tag) → `publish.yml`: clone the tag + fetch tags → JDK 24+ → `kotlin` → `./gradlew check` →
   compat `selftest` + `release` → `publishAllPublicationsToMavenCentralRepository` (vanniktech,
   Central Portal, GPG in-memory signing) → `release/v<version>` branch → `gh release create`.
-  `workflow_dispatch` exists: pick the TAG in the ref dropdown to reproduce a tag run. `ci.yml`
+  `workflow_dispatch` exists, but GitHub reads it from the workflow file IN the chosen ref: no tag up
+  to `v0.1.2` has it (added in `9f2c6d5`, one commit after the `v0.1.2` tag — measured 2026-10-26,
+  "Workflow does not exist or does not have a workflow_dispatch trigger in this tag"). It works for
+  `v0.2.0` and later tags only. ⚠️ Never dispatch on `main`: it publishes `main`'s version without
+  the tag checks (and `0.1.2` already exists on Central). `ci.yml`
   runs `check` + the self-test on push to `main` and on PRs (added 2026-10-26).
 - ⚠️ **Central Portal does not auto-publish**: the upload lands `VALIDATED` and needs the **Publish**
   button at central.sonatype.com → Deployments (this held `0.1.2`). `automaticRelease = true` in
