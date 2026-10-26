@@ -1,8 +1,11 @@
 # universalWasmLoader-jvm
 
-A lightweight, zero-dependency WebAssembly loader for JVM languages. Works with **Java 17+**, **Kotlin**, **Scala**, **Clojure**, and any other JVM language — without any native code or platform-specific setup.
+A lightweight WebAssembly loader for JVM languages. Works with **Java 24+**, **Kotlin**, **Scala**, **Clojure**, and any other JVM language — without any native code or platform-specific setup.
 
-Built on [Chicory](https://github.com/dylibso/chicory) — a pure-Java WebAssembly runtime.
+Built on [Chicory](https://github.com/dylibso/chicory) — a pure-Java WebAssembly runtime (its only
+other dependency is `kotlinx-coroutines-core`). Conforms to the cross-language
+[`SPEC.md`](https://github.com/synapticforge1/universalWasmLoader-js/blob/main/SPEC.md) **v3.0.0**,
+kept in the reference implementation, universalWasmLoader-js.
 
 ## Installation
 
@@ -166,7 +169,21 @@ Suspend function. Same as `wasmLoad` but also accepts `http://`/`https://` URLs.
 | `bool` | `Boolean` → `1`/`0` | `!= 0` → `Boolean` |
 | `string` | UTF-8 encode → `cabi_realloc` → `(ptr, len)` | i32 return ptr → read `[ptr, len]` → UTF-8 decode → `cabi_post_<name>` (SPEC 3.0.0) |
 
-See [SPEC.md](./SPEC.md) for the full cross-language conformance specification.
+See [SPEC.md](https://github.com/synapticforge1/universalWasmLoader-js/blob/main/SPEC.md) (in
+universalWasmLoader-js) for the full cross-language conformance specification.
+
+## Versioning
+
+Semantic Versioning 2.0.0. Before 1.0.0 a breaking change may ship as a minor version, but it is
+always listed below. Every release is checked against the previous one by a compatibility gate (the
+public API snapshot in `api/`, the SPEC version, and the previous release's tests run against the new
+library).
+
+### ⚠️ Breaking Changes
+
+| Version | What changed | How to migrate |
+| --- | --- | --- |
+| _next release_ | A module's exported `_initialize` (SPEC §10.1) is now called automatically, once, right after instantiation (behaviour, not API). | Remove any manual call to `_initialize`; calling it again initializes the module twice. |
 
 ## Building from Source
 
@@ -182,14 +199,19 @@ downloads the correct Gradle version automatically.
 
 The single source of truth for the version is the `version = "X.Y.Z"` line in `build.gradle.kts`.
 
-**1. Bump the version** (patch/minor/major; patch is the default):
+**1. Bump the version** (patch/minor/major; patch is the default). The bump runs the compatibility
+gate and refuses a bump below the floor it computes:
 
 ```sh
 ./gradlew bump                 # patch:  0.1.2 -> 0.1.3
 ./gradlew bump -Pkind=minor    # minor:  0.1.2 -> 0.2.0
 ./gradlew bump -Pkind=major    # major:  0.1.2 -> 1.0.0
-# or directly:  ./scripts/bump.sh [patch|minor|major]
+# or directly:  kotlin scripts/compat.main.kts bump [patch|minor|major]
+# floor only:   kotlin scripts/compat.main.kts report
 ```
+
+A public API change re-baselines the snapshot first, in its own commit: `./gradlew updateLegacyAbi`.
+Requires the `kotlin` command-line compiler on `PATH`.
 
 **2. Commit, then tag + push** to trigger CI:
 
@@ -198,7 +220,8 @@ git commit -am "bump version to v0.1.3"
 ./gradlew release              # tags v<version> and force-pushes the tag
 ```
 
-Pushing the `v*` tag runs `.github/workflows/publish.yml`, which tests, then publishes the signed
+Pushing the `v*` tag runs `.github/workflows/publish.yml`, which runs the checks and the
+compatibility gate against the previous tag, then publishes the signed
 artifacts to **Maven Central** (Sonatype Central Portal) via the `com.vanniktech.maven.publish`
 plugin, then cuts a GitHub Release.
 

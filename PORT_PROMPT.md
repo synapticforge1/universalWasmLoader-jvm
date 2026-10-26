@@ -45,10 +45,10 @@ The user never writes:
 
 | Resource | Location |
 | --- | --- |
-| Spec | `SPEC.md` (this repo) or `../universalWasmLoader-js/SPEC.md` |
+| Spec | `../universalWasmLoader-js/SPEC.md` (one text, kept in the reference implementation) |
 | JS/TS reference impl | `../universalWasmLoader-js/` — read `abi.js`, `wit-parser.js`, `universal-wasm-loader.js` |
 | JVM port (this repo) | `src/main/kotlin/com/jrmarcum/universalwasmloader/` |
-| Test fixtures | `src/test/resources/tests/` — copy `.wasm` + `.wit` pairs, do not hand-edit binaries |
+| Test fixtures | `src/test/resources/tests/` — the stamped set copied unmodified from `../universalWasmLoader-js/tests/` with its `fixtures.json`; a test checks every sha256 |
 
 Before writing any ABI logic, read `abi.js`. The port must match the JS reference exactly.
 

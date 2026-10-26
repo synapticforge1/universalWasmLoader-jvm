@@ -2,8 +2,9 @@
 package local:imports-50;
 
 world imports-50 {
-  import env-mul: func(a: f64, b: f64) -> f64;
-  import env-add: func(a: s32, b: s32) -> s32;
-  export scale: func(v: f64, factor: f64) -> f64;
+  import env-mul: func(p0: f64, p1: f64) -> f64;
+  import env-add: func(p0: s32, p1: s32) -> s32;
+
+  export scale: func(x: f64, factor: f64) -> f64;
   export combine: func(a: s32, b: s32) -> s32;
 }
