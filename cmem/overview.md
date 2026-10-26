@@ -50,7 +50,7 @@ src/main/kotlin/com/jrmarcum/universalwasmloader/
 ├── Abi.kt                   # encode/decode, MemRef, StringAbi, buildEnvFunctions (env HostFunctions)
 ├── Callbacks.kt             # host import callbacks, .on(camelName) { … } with 0–3 args
 └── WitParser.kt             # regex WIT parser, no dependencies (internal)
-src/test/kotlin/.../LoaderTest.kt    # 37 tests: SPEC §8, two §10, four wasmImport-over-HTTP, six raw mode, one fixture stamp
+src/test/kotlin/.../LoaderTest.kt    # 40 tests: SPEC §8, two §10, seven wasmImport-over-HTTP, six raw mode, one fixture stamp
 src/test/resources/tests/            # the stamped reference fixtures + fixtures.json (see Tests)
 api/universal-wasm-loader-jvm.api    # the public API snapshot (compat gate Rule 1)
 api/v0.1.2.api                       # the released surface of v0.1.2, generated from the tag
@@ -72,6 +72,15 @@ scripts/compat.main.kts              # compatibility gate + version bump (replac
   a non-2xx or an `IOException` falls back to raw exports (only `IOException` is caught, so an
   interrupt or cancellation is not swallowed). Tests on a local JDK `HttpServer`: 404 / 500 on the
   `.wasm`, `.wasm` + `.wit` over HTTP, and the `.wit` 404 / 500 fallback.
+  🔒 **Timeouts (owner, 2026-10-26: "30s sounds good"; unreleased → 0.3.0):** fixed
+  `HTTP_CONNECT_TIMEOUT` 10 s + `HTTP_RESPONSE_TIMEOUT` 30 s (until the response starts — the JDK
+  request timeout; a server that sends headers and then stalls the BODY is not covered, not tested),
+  no configuration (design principle 3). Before: none at all, so a server that accepted and never
+  answered hung `wasmImport` forever. `.wasm` timeout → `HttpTimeoutException("wasmImport: no response
+  within PT30S for <url> …")`; `.wit` timeout → raw fallback. `loadFromUrl` is `internal` with the two
+  durations as parameters so tests use 300 ms; the two stall tests carry `@Timeout(10)` so a lost
+  timeout fails the suite instead of hanging it — inverted: without the `.wasm` timeout that test
+  hit the 10 s cap, the `.wit` test (own timeout intact) passed.
 - `createSingleton(path, callbacks): () -> ModuleHandle` — Kotlin `lazy {}`.
 - `InstancePool(path, callbacks, size = 4)` — `size` independent instances; `Semaphore` +
   `ArrayBlockingQueue`; `acquire()`, `release(h)`, `run(fn)` (releases even on throw).
@@ -131,8 +140,9 @@ to 0.2.1 has it. Now, as JS raw `WebAssembly.Exports`:
 
 ## Tests
 
-`./gradlew check` runs the 37 tests (and the API snapshot check). Read counts from
-`build/test-results/test/*.xml`. **37 / 37 on 2026-10-26** (27 + four `wasmImport` HTTP + six raw-mode).
+`./gradlew check` runs the 40 tests (and the API snapshot check). Read counts from
+`build/test-results/test/*.xml`. **40 / 40 on 2026-10-26** (27 + four `wasmImport` HTTP + six raw
+mode + three timeout).
 
 - **Fixtures = the stamped reference set (workspace H7 / C11, 2026-10-26)**, copied unmodified from
   universalWasmLoader-js `36aa661` (on its `origin/main`): the five `*_50` `.wasm`/`.wit` pairs,

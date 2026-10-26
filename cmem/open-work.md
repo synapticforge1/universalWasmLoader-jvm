@@ -11,17 +11,20 @@ the same day `repo1.maven.org` still served only 0.1.2 (0.2.0 files 404) — mir
 against `v0.2.0`, its 27 tests green; 31 / 31): tag `v0.2.1` = `ec58eb2`; CI run 40408685419 and
 Publish run 40408929155 green end to end. It carries the `wasmImport` `.wasm` HTTP-error fix and the
 publishing plugin 0.37.0 with automatic publishing — the first release meant to publish itself.
-**Unreleased on `main` since 0.2.1:** raw mode (no `.wit`) typed by the export's wasm signature
-(float results were bit patterns, bad args silently `0`); a behaviour change with a `_next release_`
-Breaking Changes row → **0.3.0** when the owner says. 37 / 37; raw calls measured faster, not slower.
+**0.3.0 in preparation (owner: "yes 0.3.0"):** raw mode (no `.wit`) typed by the export's wasm
+signature (float results were bit patterns, bad args silently `0`; raw calls measured faster, not
+slower) and `wasmImport` timeouts (10 s connect, 30 s response). Both behaviour changes carry
+Breaking Changes rows. 40 / 40.
 
 ## Owner actions (🗓️)
 
-- **Is anything newer than 0.1.2 public?** The owner reported 0.2.0 published. Measured on
-  `repo1.maven.org` the same day at 17:46 and 18:03 -04:00: the 0.2.0 AND 0.2.1 POMs 404, the
-  metadata lists only 0.1.2; Central's search index lists only 0.1.2 (17:46). Check both deployments
-  on central.sonatype.com → Deployments: PUBLISHING (still syncing), PUBLISHED, or FAILED? 0.2.1 is
-  the test of automatic publishing.
+- **Is anything newer than 0.1.2 public?** The owner sees 0.2.0 published on the Portal
+  (`https://central.sonatype.com/publishing/deployments`, login required — not readable from here).
+  Measured on `repo1.maven.org` the same day at 17:46, 18:03 and 18:12 -04:00: the 0.2.0 and 0.2.1
+  POMs 404, the metadata lists only 0.1.2; Central's search index lists only 0.1.2 (17:46). The June
+  release took "15 min – a few hours" to appear; re-check, and if still absent the next day, read the
+  two deployments' state (PUBLISHING / PUBLISHED / FAILED) on that page. 0.2.1 is the first test of
+  automatic publishing.
 
 ## Backlog
 
@@ -30,10 +33,6 @@ Breaking Changes row → **0.3.0** when the owner says. 37 / 37; raw calls measu
   to raw exports, so a 500 or a timeout silently loads without types (★ 4.3). -jvm conforms (tested).
   -dotnet and -py raised the same (workspace C16, C17); changing it is a SPEC change for every port.
   (The `.wasm` half was a real bug, fixed 2026-10-26 — [overview.md](overview.md) § Public API.)
-- 🟡 **`wasmImport` has no timeout** (read 2026-10-26, not run): `HttpClient.newHttpClient()` sets no
-  connect timeout and the requests set none, so a server that accepts the connection and never
-  answers makes `wasmImport` wait forever — on the `.wasm` and on the `.wit` alike. A timeout (and
-  what it should be) is a decision; with one, a `.wit` timeout would fall back under SPEC §63.
 
 ## Workspace ledger (answers WRITTEN 2026-10-26; the workspace verifies and closes)
 
