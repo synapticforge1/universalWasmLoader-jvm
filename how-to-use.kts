@@ -7,7 +7,7 @@
 //   version                             exported i32 global, value 1
 // No companion .wit file — returns raw WebAssembly.Exports (JVM raw mode).
 
-@file:DependsOn("io.github.jrmarcum:universal-wasm-loader-jvm:0.2.0")
+@file:DependsOn("io.github.jrmarcum:universal-wasm-loader-jvm:0.2.1")
 
 import com.jrmarcum.universalwasmloader.*
 

@@ -7,15 +7,16 @@ Only open items; each points at its record. The status line lives here and nowhe
 `v0.2.0`). 0.2.0 carries SPEC §10 (`1e1ecb8`; the `_initialize` behaviour change is its Breaking
 Changes row) and the workspace-conformance merge `894db5e`. Gate: 27 / 27 tests. ⚠️ At 17:46 -04:00
 the same day `repo1.maven.org` still served only 0.1.2 (0.2.0 files 404) — mirror sync lag.
-**Unreleased on `main` since 0.2.0:** the `wasmImport` `.wasm` HTTP-error fix (a bug fix; gate floor
-patch against `v0.2.0`, its 27 tests green against the fix; 31 / 31); the publishing plugin 0.37.0
-(no deprecation warning left) with automatic publishing → 0.2.1 (owner, 2026-10-26).
+**0.2.1 bumped through the gate** (owner: "push the fix as release 0.2.1"; floor patch against
+`v0.2.0`, its 27 tests green; 31 / 31): the `wasmImport` `.wasm` HTTP-error fix, and the publishing
+plugin 0.37.0 (no deprecation warning) with automatic publishing — 0.2.1 is the first release that
+should publish itself after the tag.
 
 ## Owner actions (🗓️)
 
-- **Confirm the mirror** shows 0.2.0:
-  `https://repo1.maven.org/maven2/io/github/jrmarcum/universal-wasm-loader-jvm/maven-metadata.xml`
-  (`<latest>0.2.0</latest>`); the README install lines already say 0.2.0.
+- **What does Central show for 0.2.0?** The owner reported it published; at 17:46 and again ~18:10
+  -04:00 the same day `repo1.maven.org` returned 404 for the 0.2.0 files and Central's search index
+  listed only 0.1.2. Confirm the deployment's state on central.sonatype.com → Deployments.
 
 ## Backlog
 
