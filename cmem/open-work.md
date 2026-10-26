@@ -23,11 +23,11 @@ results were bit patterns, bad args silently `0`; raw calls measured faster, not
 
 ## Owner actions (🗓️)
 
-- 🔴 **0.2.0 is missing from Maven Central** while 0.2.1 (uploaded later) is live (18:24 -04:00):
-  the 0.2.0 deployment most likely never reached PUBLISHED. Check its state on the Deployments
-  page; if it is VALIDATED, Publish it, if FAILED or dropped, 0.2.0 stays a git tag only (0.2.1 and
-  0.3.0 supersede it; a version on Central cannot be re-uploaded anyway). Then confirm 0.3.0 appears.
-  Earlier record: the owner sees 0.2.0 published on the Portal
+- **Confirm 0.2.0 and 0.3.0 appear on `repo1.maven.org`.** 0.2.0 had NOT been published: it was
+  still waiting (VALIDATED) for the manual click, and the owner published it on the Portal at about
+  18:25 -04:00 on 2026-10-26 ("I had to publish 0.2.0 from maven"). At 18:27 both 0.2.0 and 0.3.0
+  were still 404 (sync lag); 0.2.1 live since at least 18:24 (automatic publishing). From 0.2.1 on no
+  click is needed. Earlier record: the owner first reported 0.2.0 published on the Portal
   (`https://central.sonatype.com/publishing/deployments`, login required — not readable from here).
   Measured on `repo1.maven.org` the same day at 17:46, 18:03 and 18:12 -04:00: the 0.2.0 and 0.2.1
   POMs 404, the metadata lists only 0.1.2; Central's search index lists only 0.1.2 (17:46). The June
