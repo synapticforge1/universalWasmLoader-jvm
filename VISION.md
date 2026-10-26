@@ -1,7 +1,7 @@
 # Ecosystem Vision
 
 See the authoritative vision document in the wasmtk repository:
-[wasmtk/VISION.md](https://github.com/jrmarcum/wasmtk/blob/main/VISION.md)
+[wasmtk/VISION.md](https://github.com/synapticforge1/wasmtk/blob/main/VISION.md)
 
 ---
 

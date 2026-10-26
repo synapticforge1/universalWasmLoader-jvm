@@ -31,5 +31,8 @@ build/
 hs_err_pid*
 replay_pid*
 
-# Claude Code project file
-CLAUDE.md
+# Per-machine tool settings — never tracked (workspace working-rules § Records).
+/.claude/
+
+# Private machine facts (paths, environment) — never committed.
+/cmem/local/
