@@ -269,4 +269,36 @@ class LoaderTest {
         val m = wasmLoad(fixture("wasi_io_50.wasm"))
         assertEquals(42, m.call("logAndDouble", 21))
     }
+
+    // ---------------------------------------------------------------------------
+    // SPEC §7 — the fixtures are the stamped reference set, unmodified
+    // ---------------------------------------------------------------------------
+
+    @Test
+    fun `fixtures match the stamp in fixtures json`() {
+        // The committed bytes (Gradle runs tests from the project dir), not the build copy.
+        // Same rule as -js's check-fixtures.ts: every stamped file present with its sha256,
+        // and no .wasm / .wit / .wat that the stamp does not list. Re-copy from
+        // universalWasmLoader-js on failure; never edit a fixture by hand.
+        val dir = java.io.File("src/test/resources/tests")
+        val stamp = java.io.File(dir, "fixtures.json").readText()
+        val filesBlock = Regex("\"files\"\\s*:\\s*\\{([^}]*)\\}").find(stamp)?.groupValues?.get(1)
+            ?: fail("fixtures.json has no \"files\" object")
+        val expected = Regex("\"([^\"]+)\"\\s*:\\s*\"([0-9a-f]{64})\"").findAll(filesBlock)
+            .associate { it.groupValues[1] to it.groupValues[2] }
+        assertTrue(expected.isNotEmpty(), "fixtures.json lists no files")
+
+        val problems = mutableListOf<String>()
+        for ((name, hash) in expected) {
+            val f = java.io.File(dir, name)
+            if (!f.exists()) { problems += "$name: missing"; continue }
+            val actual = java.security.MessageDigest.getInstance("SHA-256").digest(f.readBytes())
+                .joinToString("") { "%02x".format(it) }
+            if (actual != hash) problems += "$name: bytes differ from the stamp"
+        }
+        dir.listFiles()!!.map { it.name }
+            .filter { Regex("\\.(wasm|wit|wat)$").containsMatchIn(it) && it !in expected }
+            .forEach { problems += "$it: not in the stamp" }
+        assertEquals(emptyList<String>(), problems)
+    }
 }
