@@ -1,0 +1,62 @@
+# CI on every push to main and every pull request: the same gate as the local one
+# (cmem/working-rules.md § The gate): `./gradlew check` (tests + the api/ snapshot
+# check) and the compatibility gate's self-test. run:-only, like publish.yml.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request: {}
+
+jobs:
+  check:
+    name: Check
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Clone repository
+        run: |
+          git clone --depth=1 \
+            "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" .
+          git fetch --depth=1 origin "${GITHUB_SHA}"
+          git checkout -q "${GITHUB_SHA}"
+
+      # Same JDK selection as publish.yml (JVM 24 target, JDK 25 toolchain).
+      - name: Set up JDK 24+ (Temurin)
+        run: |
+          set -euo pipefail
+          found=""
+          for d in /usr/lib/jvm/temurin-25* /usr/lib/jvm/temurin-24* \
+                   /usr/lib/jvm/*-25-* /usr/lib/jvm/*-24-*; do
+            if [ -x "$d/bin/javac" ]; then found="$d"; break; fi
+          done
+          if [ -z "$found" ]; then
+            echo "No preinstalled JDK 24+ found — downloading Temurin 25."
+            url="https://api.adoptium.net/v3/binary/latest/25/ga/linux/x64/jdk/hotspot/normal/eclipse"
+            mkdir -p "$HOME/jdk"
+            curl -fsSL "$url" -o /tmp/jdk.tar.gz
+            tar -xzf /tmp/jdk.tar.gz -C "$HOME/jdk" --strip-components=1
+            found="$HOME/jdk"
+          fi
+          echo "JAVA_HOME=$found" >> "$GITHUB_ENV"
+          echo "$found/bin"       >> "$GITHUB_PATH"
+
+      - name: Set up the kotlin command
+        run: |
+          set -euo pipefail
+          if ! command -v kotlin >/dev/null 2>&1; then
+            curl -fsSL "https://github.com/JetBrains/kotlin/releases/download/v2.2.0/kotlin-compiler-2.2.0.zip" -o /tmp/kotlinc.zip
+            unzip -q /tmp/kotlinc.zip -d "$HOME"
+            echo "$HOME/kotlinc/bin" >> "$GITHUB_PATH"
+          fi
+
+      - name: Check
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon check
+
+      - name: Compatibility gate self-test
+        run: kotlin scripts/compat.main.kts selftest
