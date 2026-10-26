@@ -6,6 +6,7 @@ import com.dylibso.chicory.wasi.WasiOptions
 import com.dylibso.chicory.wasi.WasiPreview1
 import com.dylibso.chicory.wasm.Parser
 import com.dylibso.chicory.wasm.types.ExternalType
+import com.dylibso.chicory.wasm.types.ValueType
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
@@ -47,11 +48,36 @@ class ModuleHandle internal constructor(
     fun call(name: String, vararg args: Any?): Any? =
         if (witDoc == null) callRaw(name, args) else callWithAbi(name, args)
 
+    // Raw mode: each export's wasm signature is resolved once, on its first call, and
+    // cached — a call then costs one map lookup and a conversion per argument, so typing
+    // raw mode does not slow a hot call loop down (measured: cmem/overview.md § ABI).
+    private class RawExport(
+        val fn: com.dylibso.chicory.runtime.ExportFunction,
+        val params: Array<ValueType>,
+        val results: Array<ValueType>,
+    )
+
+    private val rawExports = java.util.concurrent.ConcurrentHashMap<String, RawExport>()
+
+    private fun rawExport(name: String): RawExport = rawExports.getOrPut(name) {
+        val export = findExportByName(instance, name)
+        require(export != null && export.exportType() == ExternalType.FUNCTION) {
+            "no exported function '$name'; the module exports: ${exportedFunctionNames(instance)}"
+        }
+        val type = instance.exportType(name)
+        RawExport(instance.export(name), type.params().toTypedArray(), type.returns().toTypedArray())
+    }
+
     private fun callRaw(name: String, args: Array<out Any?>): Any? {
-        val fn = instance.export(name)
-        val wasmArgs = args.map { Abi.encodeRawArg(it) }.toLongArray()
-        val result = fn.apply(*wasmArgs)
-        return if (result.isEmpty()) null else Abi.decodeRawValue(result[0])
+        val ex = rawExport(name)
+        require(args.size == ex.params.size) { "'$name' takes ${ex.params.size} arguments, got ${args.size}" }
+        val wasmArgs = LongArray(args.size) { i -> Abi.encodeRawArg(name, i, ex.params[i], args[i]) }
+        val result = ex.fn.apply(*wasmArgs)
+        return when (ex.results.size) {
+            0 -> null
+            1 -> Abi.decodeRawValue(ex.results[0], result[0])
+            else -> List(ex.results.size) { Abi.decodeRawValue(ex.results[it], result[it]) } // multi-value
+        }
     }
 
     private fun callWithAbi(name: String, args: Array<out Any?>): Any? {
@@ -320,6 +346,13 @@ private fun findExportByName(instance: Instance, name: String): com.dylibso.chic
     return null
 }
 
+private fun exportedFunctionNames(instance: Instance): List<String> {
+    val section = instance.module().exportSection()
+    return (0 until section.exportCount()).map { section.getExport(it) }
+        .filter { it.exportType() == ExternalType.FUNCTION }
+        .map { it.name() }
+}
+
 // Detect which string ABI the module uses based on its exports.
 private fun detectStringAbi(instance: Instance): StringAbi {
     val section = instance.module().exportSection()
@@ -363,9 +396,18 @@ private fun instantiateFromBytes(
     }
     val importValues = importBuilder.build()
 
-    val instance = Instance.builder(wasmModule)
-        .withImportValues(importValues)
-        .build()
+    // Host callbacks are wired from the .wit's import list; without a .wit a module that
+    // imports host functions cannot link. Say so, instead of only "unknown import".
+    val instance = try {
+        Instance.builder(wasmModule)
+            .withImportValues(importValues)
+            .build()
+    } catch (e: com.dylibso.chicory.wasm.UnlinkableException) {
+        if (witDoc != null) throw e
+        throw IllegalStateException(
+            "'$pathForError' has no companion .wit, so its host imports cannot be wired to callbacks: ${e.message}", e
+        )
+    }
 
     memRef.current = instance.memory()
 

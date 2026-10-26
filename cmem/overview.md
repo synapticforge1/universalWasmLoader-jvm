@@ -50,7 +50,7 @@ src/main/kotlin/com/jrmarcum/universalwasmloader/
 ├── Abi.kt                   # encode/decode, MemRef, StringAbi, buildEnvFunctions (env HostFunctions)
 ├── Callbacks.kt             # host import callbacks, .on(camelName) { … } with 0–3 args
 └── WitParser.kt             # regex WIT parser, no dependencies (internal)
-src/test/kotlin/.../LoaderTest.kt    # 31 tests: SPEC §8, two §10, four wasmImport-over-HTTP, one fixture stamp
+src/test/kotlin/.../LoaderTest.kt    # 37 tests: SPEC §8, two §10, four wasmImport-over-HTTP, six raw mode, one fixture stamp
 src/test/resources/tests/            # the stamped reference fixtures + fixtures.json (see Tests)
 api/universal-wasm-loader-jvm.api    # the public API snapshot (compat gate Rule 1)
 api/v0.1.2.api                       # the released surface of v0.1.2, generated from the tag
@@ -99,6 +99,28 @@ is detected at instantiation from the export section (`detectStringAbi`):
 Import string params (WASM → host) are decoded via `MemRef.current`, set to `instance.memory()`
 right after `Instance.build()` (memory exists only after instantiation).
 
+### Raw mode (no `.wit`) — typed by the export's wasm signature (2026-10-26, unreleased → 0.3.0)
+
+SPEC §63 falls back to raw exports when there is no `.wit`. Until 2026-10-26 raw mode encoded by
+the JVM argument type and returned every result as a raw `Long` — measured with a probe on the
+fixtures: `multiply(2.5, 4.0)` returned `4621819117588971520` (the bits of 10.0), Int args to f64
+params gave `0`, a `String` arg silently became `0`, a missing arg / unknown export threw
+`ArrayIndexOutOfBounds` / `NullPointerException`. Only integer functions worked; every release up
+to 0.2.1 has it. Now, as JS raw `WebAssembly.Exports`:
+
+- `instance.exportType(name)` gives `params()` / `returns()`; resolved ONCE per export and cached
+  per handle (`ModuleHandle.rawExports`), so a call is one map lookup + a conversion per argument.
+- Args: any `Number` converts to the parameter type (`toInt` / `toLong` / `toFloat` / `toDouble`),
+  `Boolean` → 1 / 0; anything else, a wrong count or an unknown export → `IllegalArgumentException`.
+- Results: i32 → `Int`, i64 → `Long`, f32 → `Float`, f64 → `Double`; several results → a `List`.
+- A module that imports host functions and has no `.wit` fails with `IllegalStateException` naming
+  the missing `.wit` (Chicory's `UnlinkableException` as the cause).
+- **Speed (owner: "we do not want to unwittingly slow a user's code execution down"), measured
+  2026-10-26** with a throwaway probe (2,000,000 calls × 5 after warm-up, median ns/call): raw
+  `add` 63–132 old → 44–54 new, raw `multiply` 64–110 old → 55–57 new (the old path repeated the
+  export lookup on every call). The WIT path is untouched; its readings wandered 77–124 ns across
+  runs of the SAME old code, so single-run differences there are noise.
+
 ## SPEC §10 — producer model (2026-07-05, `1e1ecb8`)
 
 - **§10.1** — a reactor's `_initialize` is called once after instantiation, before any other export.
@@ -109,8 +131,8 @@ right after `Instance.build()` (memory exists only after instantiation).
 
 ## Tests
 
-`./gradlew check` runs the 31 tests (and the API snapshot check). Read counts from
-`build/test-results/test/*.xml`. **31 / 31 on 2026-10-26** (27 + the four `wasmImport` HTTP tests).
+`./gradlew check` runs the 37 tests (and the API snapshot check). Read counts from
+`build/test-results/test/*.xml`. **37 / 37 on 2026-10-26** (27 + four `wasmImport` HTTP + six raw-mode).
 
 - **Fixtures = the stamped reference set (workspace H7 / C11, 2026-10-26)**, copied unmodified from
   universalWasmLoader-js `36aa661` (on its `origin/main`): the five `*_50` `.wasm`/`.wit` pairs,
