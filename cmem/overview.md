@@ -138,8 +138,10 @@ right after `Instance.build()` (memory exists only after instantiation).
   `publishToMavenCentral(...)` would remove the click (owner call, not set).
 - **Publishing path (workspace H20, recorded 2026-10-26):** a Central Portal **user token** + a GPG key,
   held in four repository secrets — NOT trusted publishing / OIDC, so no policy pins GitHub owner or
-  repository ids and the org move needs no policy change. `0.1.2` was published 2026-06-24, before the
-  move; the next release is the first from the org (secrets confirmed present 2026-10-20).
+  repository ids and the org move needed no policy change. `0.1.2` was published 2026-06-24 by a
+  `workflow_dispatch` on `main` (`9f2c6d5`, run 28141421397 — release steps skipped), not by its
+  tag. **0.2.0 is the first release from the org** (tag `v0.2.0` = `6812998`, run 40406408422 green
+  2026-10-26: the secrets work after the move).
 - **Workflows are `run:`-only by choice** (the old `jrmarcum` account allowed only its own actions;
   the org allows all since 2026-10-20). Changing the proven release path wants a `workflow_dispatch`
   test first.
