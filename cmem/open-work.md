@@ -2,17 +2,17 @@
 
 Only open items; each points at its record. The status line lives here and nowhere else.
 
-**Status (2026-10-26):** **0.2.0 uploaded, awaiting the Central Portal Publish click.** `main` and
-tag `v0.2.0` = `6812998` on GitHub; Publish run 40406408422 green end to end (check, compatibility
-gate, upload, `release/v0.2.0` branch, GitHub Release); `repo1.maven.org` still lists only 0.1.2
-(read 2026-10-26). 0.2.0 carries SPEC §10 (`1e1ecb8`; the `_initialize` behaviour change is its
-Breaking Changes row) and the workspace-conformance merge `894db5e`. Gate: 27 / 27 tests.
+**Status (2026-10-26):** **released 0.2.0** — published on the Central Portal by the owner (reported
+2026-10-26), from tag `v0.2.0` = `6812998` (Publish run 40406408422, green end to end; GitHub Release
+`v0.2.0`). 0.2.0 carries SPEC §10 (`1e1ecb8`; the `_initialize` behaviour change is its Breaking
+Changes row) and the workspace-conformance merge `894db5e`. Gate: 27 / 27 tests. ⚠️ At 17:46 -04:00
+the same day `repo1.maven.org` still served only 0.1.2 (0.2.0 files 404) — mirror sync lag.
 
 ## Owner actions (🗓️)
 
-- **Click Publish** at central.sonatype.com → Deployments for 0.2.0, then confirm it appears in
+- **Confirm the mirror** shows 0.2.0:
   `https://repo1.maven.org/maven2/io/github/jrmarcum/universal-wasm-loader-jvm/maven-metadata.xml`
-  (mirror sync lags 15 min – hours).
+  (`<latest>0.2.0</latest>`); the README install lines already say 0.2.0.
 - **Central Portal auto-publish**: each release still needs the manual Publish click unless
   `automaticRelease = true` is set ([overview.md](overview.md) § Build and release).
 

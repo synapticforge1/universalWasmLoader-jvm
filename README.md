@@ -13,7 +13,7 @@ Add to your `build.gradle.kts`:
 
 ```kotlin
 dependencies {
-    implementation("io.github.jrmarcum:universal-wasm-loader-jvm:0.1.2")
+    implementation("io.github.jrmarcum:universal-wasm-loader-jvm:0.2.0")
 }
 ```
 
@@ -23,7 +23,7 @@ Or `pom.xml`:
 <dependency>
     <groupId>io.github.jrmarcum</groupId>
     <artifactId>universal-wasm-loader-jvm</artifactId>
-    <version>0.1.2</version>
+    <version>0.2.0</version>
 </dependency>
 ```
 
