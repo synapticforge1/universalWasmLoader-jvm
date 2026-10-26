@@ -48,6 +48,8 @@ jobs:
         run: |
           git clone --depth=1 --branch "${GITHUB_REF_NAME}" \
             "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" .
+          # The compatibility gate compares against the previous tag: fetch every tag (shallow).
+          git fetch --depth=1 origin 'refs/tags/*:refs/tags/*'
 
       # --- JDK install (run:, not actions/setup-java) --------------------------
       # The build targets JVM 24 with a JDK 25 toolchain (requires JDK 24+).
@@ -74,16 +76,37 @@ jobs:
           echo "JAVA_HOME=$found"      >> "$GITHUB_ENV"
           echo "$found/bin"            >> "$GITHUB_PATH"
 
+      # --- Kotlin CLI for scripts/compat.main.kts (run:, no setup action) ------
+      - name: Set up the kotlin command
+        run: |
+          set -euo pipefail
+          if ! command -v kotlin >/dev/null 2>&1; then
+            echo "kotlin not preinstalled — downloading the Kotlin 2.2.0 compiler."
+            curl -fsSL "https://github.com/JetBrains/kotlin/releases/download/v2.2.0/kotlin-compiler-2.2.0.zip" -o /tmp/kotlinc.zip
+            unzip -q /tmp/kotlinc.zip -d "$HOME"
+            echo "$HOME/kotlinc/bin" >> "$GITHUB_PATH"
+          fi
+
       - name: Show toolchain
         run: |
           java -version
+          kotlin -version
           ./gradlew --version
 
-      # --- Test gate -----------------------------------------------------------
-      - name: Test
+      # --- Test gate (check = tests + the api/ snapshot check) -------------------
+      - name: Check
         run: |
           chmod +x gradlew
-          ./gradlew --no-daemon test
+          ./gradlew --no-daemon check
+
+      # --- Compatibility gate (cmem/compat-gate.md) ------------------------------
+      # Self-test of the gate's logic, then this tag against the previous one:
+      # version agreement, the SPEC/API floor, the Breaking Changes row, and the
+      # previous tag's tests against this library. Blocks the publish on failure.
+      - name: Compatibility gate
+        run: |
+          kotlin scripts/compat.main.kts selftest
+          kotlin scripts/compat.main.kts release
 
       # --- Publish (signed) to Maven Central -----------------------------------
       - name: Publish to Maven Central
