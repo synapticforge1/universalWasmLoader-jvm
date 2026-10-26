@@ -11,10 +11,11 @@ the same day `repo1.maven.org` still served only 0.1.2 (0.2.0 files 404) — mir
 against `v0.2.0`, its 27 tests green; 31 / 31): tag `v0.2.1` = `ec58eb2`; CI run 40408685419 and
 Publish run 40408929155 green end to end. It carries the `wasmImport` `.wasm` HTTP-error fix and the
 publishing plugin 0.37.0 with automatic publishing — the first release meant to publish itself.
-**0.3.0 in preparation (owner: "yes 0.3.0"):** raw mode (no `.wit`) typed by the export's wasm
-signature (float results were bit patterns, bad args silently `0`; raw calls measured faster, not
-slower) and `wasmImport` timeouts (10 s connect, 30 s response). Both behaviour changes carry
-Breaking Changes rows. 40 / 40.
+**0.3.0 bumped through the gate (owner: "yes 0.3.0"):** floor patch against `v0.2.1` (API
+unchanged), its 31 tests green; a minor because both changes are behaviour changes with Breaking
+Changes rows (stamped `0.3.0`): raw mode (no `.wit`) typed by the export's wasm signature (float
+results were bit patterns, bad args silently `0`; raw calls measured faster, not slower) and
+`wasmImport` timeouts (10 s connect, 30 s response). 40 / 40.
 
 ## Owner actions (🗓️)
 

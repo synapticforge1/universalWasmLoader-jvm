@@ -13,7 +13,7 @@ Add to your `build.gradle.kts`:
 
 ```kotlin
 dependencies {
-    implementation("io.github.jrmarcum:universal-wasm-loader-jvm:0.2.1")
+    implementation("io.github.jrmarcum:universal-wasm-loader-jvm:0.3.0")
 }
 ```
 
@@ -23,7 +23,7 @@ Or `pom.xml`:
 <dependency>
     <groupId>io.github.jrmarcum</groupId>
     <artifactId>universal-wasm-loader-jvm</artifactId>
-    <version>0.2.1</version>
+    <version>0.3.0</version>
 </dependency>
 ```
 
@@ -188,8 +188,8 @@ library).
 
 | Version | What changed | How to migrate |
 | --- | --- | --- |
-| _next release_ | Raw mode (no `.wit`) follows each export's wasm signature: an i32 result is an `Int` (was a `Long`), f32 / f64 results are `Float` / `Double` (were their raw bit patterns), arguments convert to the parameter types, and an argument that cannot convert (a `String`, `null`), a wrong argument count, or an unknown export throws `IllegalArgumentException` (were silently `0`, an `ArrayIndexOutOfBoundsException`, a `NullPointerException`). | Drop casts like `as Long` on i32 results (`(r as Number).toInt()` works before and after); remove any decoding of float bit patterns. |
-| _next release_ | `wasmImport` over HTTP has fixed timeouts: 10 s to connect, 30 s until the server starts answering. A `.wasm` request that exceeds them throws `java.net.http.HttpTimeoutException` (it used to wait forever); a `.wit` request that exceeds them falls back to raw exports (SPEC §63). | Serve modules from a server that answers within 30 s; catch `IOException` (which `HttpTimeoutException` extends) where a load may fail. |
+| 0.3.0 | Raw mode (no `.wit`) follows each export's wasm signature: an i32 result is an `Int` (was a `Long`), f32 / f64 results are `Float` / `Double` (were their raw bit patterns), arguments convert to the parameter types, and an argument that cannot convert (a `String`, `null`), a wrong argument count, or an unknown export throws `IllegalArgumentException` (were silently `0`, an `ArrayIndexOutOfBoundsException`, a `NullPointerException`). | Drop casts like `as Long` on i32 results (`(r as Number).toInt()` works before and after); remove any decoding of float bit patterns. |
+| 0.3.0 | `wasmImport` over HTTP has fixed timeouts: 10 s to connect, 30 s until the server starts answering. A `.wasm` request that exceeds them throws `java.net.http.HttpTimeoutException` (it used to wait forever); a `.wit` request that exceeds them falls back to raw exports (SPEC §63). | Serve modules from a server that answers within 30 s; catch `IOException` (which `HttpTimeoutException` extends) where a load may fail. |
 | 0.2.0 | A module's exported `_initialize` (SPEC §10.1) is now called automatically, once, right after instantiation (behaviour, not API). | Remove any manual call to `_initialize`; calling it again initializes the module twice. |
 
 ## Building from Source
