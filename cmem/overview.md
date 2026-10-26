@@ -50,7 +50,7 @@ src/main/kotlin/com/jrmarcum/universalwasmloader/
 ├── Abi.kt                   # encode/decode, MemRef, StringAbi, buildEnvFunctions (env HostFunctions)
 ├── Callbacks.kt             # host import callbacks, .on(camelName) { … } with 0–3 args
 └── WitParser.kt             # regex WIT parser, no dependencies (internal)
-src/test/kotlin/.../LoaderTest.kt    # 27 tests: SPEC §8, two §10, one fixture-stamp check
+src/test/kotlin/.../LoaderTest.kt    # 31 tests: SPEC §8, two §10, four wasmImport-over-HTTP, one fixture stamp
 src/test/resources/tests/            # the stamped reference fixtures + fixtures.json (see Tests)
 api/universal-wasm-loader-jvm.api    # the public API snapshot (compat gate Rule 1)
 api/v0.1.2.api                       # the released surface of v0.1.2, generated from the tag
@@ -65,8 +65,13 @@ scripts/compat.main.kts              # compatibility gate + version bump (replac
 - `wasmLoad<T>(path, callbacks): T` — reified inline; a `java.lang.reflect.Proxy` over interface `T`,
   each method dispatching to `call(method.name, …)`. ⚠️ Being inline-reified it is NOT in the ABI
   snapshot; the previous-tag tests guard it ([compat-gate.md](compat-gate.md)).
-- `suspend wasmImport(source, callbacks): ModuleHandle` — also `http(s)://` (fetches `.wasm`, then a
-  best-effort `.wit` via `HttpClient`). ⚠️ Masks HTTP errors — [open-work.md](open-work.md).
+- `suspend wasmImport(source, callbacks): ModuleHandle` — also `http(s)://` via `HttpClient`. The
+  `.wasm` fetch throws `IOException("wasmImport: HTTP <status> for <url>")` on any non-2xx (fixed
+  2026-10-26; before, the error page reached Chicory and surfaced as `MalformedException` — measured
+  by the new tests against the old loader, as loader-js `64551fa`). The `.wit` fetch keeps SPEC §63:
+  a non-2xx or an `IOException` falls back to raw exports (only `IOException` is caught, so an
+  interrupt or cancellation is not swallowed). Tests on a local JDK `HttpServer`: 404 / 500 on the
+  `.wasm`, `.wasm` + `.wit` over HTTP, and the `.wit` 404 / 500 fallback.
 - `createSingleton(path, callbacks): () -> ModuleHandle` — Kotlin `lazy {}`.
 - `InstancePool(path, callbacks, size = 4)` — `size` independent instances; `Semaphore` +
   `ArrayBlockingQueue`; `acquire()`, `release(h)`, `run(fn)` (releases even on throw).
@@ -104,8 +109,8 @@ right after `Instance.build()` (memory exists only after instantiation).
 
 ## Tests
 
-`./gradlew check` runs the 27 tests (and the API snapshot check). Read counts from
-`build/test-results/test/*.xml`. **27 / 27 on 2026-10-26.**
+`./gradlew check` runs the 31 tests (and the API snapshot check). Read counts from
+`build/test-results/test/*.xml`. **31 / 31 on 2026-10-26** (27 + the four `wasmImport` HTTP tests).
 
 - **Fixtures = the stamped reference set (workspace H7 / C11, 2026-10-26)**, copied unmodified from
   universalWasmLoader-js `36aa661` (on its `origin/main`): the five `*_50` `.wasm`/`.wit` pairs,

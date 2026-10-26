@@ -271,6 +271,84 @@ class LoaderTest {
     }
 
     // ---------------------------------------------------------------------------
+    // wasmImport over HTTP — an HTTP error on the .wasm is reported as one; the
+    // .wit keeps SPEC §63's fallback to raw exports. A local JDK HttpServer serves
+    // fixed status codes and counts requests per path.
+    // ---------------------------------------------------------------------------
+
+    private class FixtureServer(routes: Map<String, Pair<Int, ByteArray>>) : AutoCloseable {
+        val hits = java.util.concurrent.ConcurrentHashMap<String, Int>()
+        private val server = com.sun.net.httpserver.HttpServer.create(
+            java.net.InetSocketAddress(java.net.InetAddress.getLoopbackAddress(), 0), 0
+        ).apply {
+            createContext("/") { ex ->
+                val path = ex.requestURI.path
+                hits.merge(path, 1, Int::plus)
+                val (status, body) = routes[path] ?: (404 to ByteArray(0))
+                ex.sendResponseHeaders(status, if (body.isEmpty()) -1 else body.size.toLong())
+                if (body.isNotEmpty()) ex.responseBody.use { it.write(body) }
+                ex.close()
+            }
+            start()
+        }
+        val base = "http://127.0.0.1:${server.address.port}"
+        override fun close() = server.stop(0)
+    }
+
+    private fun bytes(name: String) = java.io.File("src/test/resources/tests/$name").readBytes()
+
+    @Test
+    fun `wasmImport reports an HTTP 404 on the wasm`() {
+        FixtureServer(emptyMap()).use { srv ->
+            val e = assertThrows(java.io.IOException::class.java) {
+                kotlinx.coroutines.runBlocking { wasmImport("${srv.base}/math_50.wasm") }
+            }
+            assertEquals("wasmImport: HTTP 404 for ${srv.base}/math_50.wasm", e.message)
+            assertEquals(1, srv.hits["/math_50.wasm"])
+            assertNull(srv.hits["/math_50.wit"], "no .wit request after the .wasm failed")
+        }
+    }
+
+    @Test
+    fun `wasmImport reports an HTTP 500 on the wasm`() {
+        FixtureServer(mapOf("/math_50.wasm" to (500 to "boom".toByteArray()))).use { srv ->
+            val e = assertThrows(java.io.IOException::class.java) {
+                kotlinx.coroutines.runBlocking { wasmImport("${srv.base}/math_50.wasm") }
+            }
+            assertEquals("wasmImport: HTTP 500 for ${srv.base}/math_50.wasm", e.message)
+        }
+    }
+
+    @Test
+    fun `wasmImport loads wasm and wit over HTTP`() {
+        val routes = mapOf(
+            "/math_50.wasm" to (200 to bytes("math_50.wasm")),
+            "/math_50.wit" to (200 to bytes("math_50.wit")),
+        )
+        FixtureServer(routes).use { srv ->
+            val m = kotlinx.coroutines.runBlocking { wasmImport("${srv.base}/math_50.wasm") }
+            assertEquals(7, m.call("add", 3, 4)) // WIT path: s32 → Int
+            assertEquals(1, srv.hits["/math_50.wasm"])
+            assertEquals(1, srv.hits["/math_50.wit"])
+        }
+    }
+
+    @Test
+    fun `wasmImport falls back to raw exports when the wit is 404 or 500 (SPEC 63)`() {
+        for (witStatus in listOf(404, 500)) {
+            val routes = mapOf(
+                "/math_50.wasm" to (200 to bytes("math_50.wasm")),
+                "/math_50.wit" to (witStatus to ByteArray(0)),
+            )
+            FixtureServer(routes).use { srv ->
+                val m = kotlinx.coroutines.runBlocking { wasmImport("${srv.base}/math_50.wasm") }
+                // Raw mode returns a Long; normalize before comparing.
+                assertEquals(7, (m.call("add", 3, 4) as Number).toInt(), "wit $witStatus")
+            }
+        }
+    }
+
+    // ---------------------------------------------------------------------------
     // SPEC §7 — the fixtures are the stamped reference set, unmodified
     // ---------------------------------------------------------------------------
 
