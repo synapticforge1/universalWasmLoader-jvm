@@ -1,8 +1,11 @@
-# Shell scripts and the Gradle wrapper must use LF endings so they run on the
-# Linux CI runner (a CRLF in bump.sh / gradlew breaks the bash shebang line).
-*.sh    text eol=lf
+# Wildcard first: every text file is LF in the repo and in the checkout
+# (workspace tooling rule 7). A CRLF in gradlew breaks the bash shebang on the
+# Linux CI runner.
+* text=auto eol=lf
 gradlew text eol=lf
+*.kts   text eol=lf
+*.wit   text eol=lf
 
-# Treat the wrapper jar and wasm fixtures as binary.
+# Binaries: the wrapper jar and the wasm fixtures (their bytes are hashed).
 *.jar   binary
 *.wasm  binary
