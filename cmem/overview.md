@@ -97,7 +97,7 @@ right after `Instance.build()` (memory exists only after instantiation).
 ## SPEC §10 — producer model (2026-07-05, `1e1ecb8`)
 
 - **§10.1** — a reactor's `_initialize` is called once after instantiation, before any other export.
-  A behaviour change since `v0.1.2`: README Breaking Changes row `_next release_`.
+  A behaviour change since `v0.1.2`, shipped in 0.2.0: the README Breaking Changes row `0.2.0`.
 - **§10.2** — Chicory's first-party `WasiPreview1` (`WasiOptions.builder().inheritSystem()`) supplies
   `wasi_snapshot_preview1`; its host functions are merged with the `env` ones into one `ImportValues`,
   so a `modc` library that calls `console.log` loads on a plain JVM.
@@ -141,7 +141,8 @@ right after `Instance.build()` (memory exists only after instantiation).
   repository ids and the org move needed no policy change. `0.1.2` was published 2026-06-24 by a
   `workflow_dispatch` on `main` (`9f2c6d5`, run 28141421397 — release steps skipped), not by its
   tag. **0.2.0 is the first release from the org** (tag `v0.2.0` = `6812998`, run 40406408422 green
-  2026-10-26: the secrets work after the move).
+  2026-10-26: the secrets work after the move; published on the Portal by the owner the same day).
+  It is also the first release through the compatibility gate ([compat-gate.md](compat-gate.md)).
 - **Workflows are `run:`-only by choice** (the old `jrmarcum` account allowed only its own actions;
   the org allows all since 2026-10-20). Changing the proven release path wants a `workflow_dispatch`
   test first.
