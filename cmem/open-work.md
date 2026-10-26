@@ -7,6 +7,8 @@ Only open items; each points at its record. The status line lives here and nowhe
 `v0.2.0`). 0.2.0 carries SPEC §10 (`1e1ecb8`; the `_initialize` behaviour change is its Breaking
 Changes row) and the workspace-conformance merge `894db5e`. Gate: 27 / 27 tests. ⚠️ At 17:46 -04:00
 the same day `repo1.maven.org` still served only 0.1.2 (0.2.0 files 404) — mirror sync lag.
+**Unreleased on `main` since 0.2.0:** the `wasmImport` `.wasm` HTTP-error fix (a bug fix; gate floor
+patch against `v0.2.0`, its 27 tests green against the fix; 31 / 31) → a 0.2.1 when the owner says.
 
 ## Owner actions (🗓️)
 
@@ -18,12 +20,11 @@ the same day `repo1.maven.org` still served only 0.1.2 (0.2.0 files 404) — mir
 
 ## Backlog
 
-- 🔴 **`wasmImport` masks HTTP errors** (`UniversalWasmLoader.kt` `loadFromUrl`, read 2026-10-26, not
-  run): the `.wasm` fetch never checks the status, so a 404/500 error page is handed to Chicory and
-  surfaces as a module parse error; the `.wit` fetch turns any non-200 or exception into "no `.wit`",
-  so a 500 / timeout silently falls back to raw mode (★ 4.3 silent-wrong). loader-js fixed its `.wasm`
-  half in `64551fa`; loader-dotnet logged the `.wit` half (workspace C14, C16). Fix both with a test
-  per path; decide the `.wit` rule against SPEC (404 = absent, anything else = error?).
+- 🗓️ **The `.wit` fallback masks server errors — a SPEC question for all the ports, not a -jvm bug.**
+  SPEC 3.0.0 §63 REQUIRES a `.wit` that "cannot be fetched (e.g. 404 or network error)" to fall back
+  to raw exports, so a 500 or a timeout silently loads without types (★ 4.3). -jvm conforms (tested).
+  -dotnet and -py raised the same (workspace C16, C17); changing it is a SPEC change for every port.
+  (The `.wasm` half was a real bug, fixed 2026-10-26 — [overview.md](overview.md) § Public API.)
 
 ## Workspace ledger (answers to write after the commit lands)
 

@@ -33,7 +33,7 @@ H22, H28).
   the bump itself runs the same gate and refuses below the floor. Design: [compat-gate.md](compat-gate.md).
 - **A public API change re-baselines in its own commit**: `./gradlew updateLegacyAbi`, with the reason.
 - **Read the counts, not the exit code**: `build/test-results/test/*.xml` (`tests`, `failures`,
-  `errors`). 27 tests on 2026-10-26.
+  `errors`). 31 tests on 2026-10-26.
 - **Invert every new test or gate** before trusting it.
 
 ## Tooling (workspace Tooling rule 1, 🔒 owner 2026-10-22)
