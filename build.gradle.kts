@@ -1,7 +1,9 @@
 plugins {
     kotlin("jvm") version "2.2.0"
     `java-library`
-    id("com.vanniktech.maven.publish") version "0.29.0"
+    // 0.29.0 called the deprecated StartParameter.isConfigurationCacheRequested (to be
+    // removed in Gradle 10) from publishToMavenCentral; 0.37.0 does not (measured 2026-10-26).
+    id("com.vanniktech.maven.publish") version "0.37.0"
 }
 
 group = "io.github.jrmarcum"
@@ -111,7 +113,9 @@ tasks.register("release") {
 }
 
 mavenPublishing {
-    publishToMavenCentral(com.vanniktech.maven.publish.SonatypeHost.CENTRAL_PORTAL)
+    // Central Portal (the plugin's only target since 0.34). automaticRelease: the upload
+    // publishes itself once validated — no manual "Publish" click after a tag (owner, 2026-10-26).
+    publishToMavenCentral(automaticRelease = true)
     signAllPublications()
 
     coordinates("io.github.jrmarcum", "universal-wasm-loader-jvm", version.toString())
