@@ -7,16 +7,18 @@ Only open items; each points at its record. The status line lives here and nowhe
 `v0.2.0`). 0.2.0 carries SPEC §10 (`1e1ecb8`; the `_initialize` behaviour change is its Breaking
 Changes row) and the workspace-conformance merge `894db5e`. Gate: 27 / 27 tests. ⚠️ At 17:46 -04:00
 the same day `repo1.maven.org` still served only 0.1.2 (0.2.0 files 404) — mirror sync lag.
-**0.2.1 bumped through the gate** (owner: "push the fix as release 0.2.1"; floor patch against
-`v0.2.0`, its 27 tests green; 31 / 31): the `wasmImport` `.wasm` HTTP-error fix, and the publishing
-plugin 0.37.0 (no deprecation warning) with automatic publishing — 0.2.1 is the first release that
-should publish itself after the tag.
+**0.2.1 tagged and uploaded** (owner: "push the fix as release 0.2.1"; gated bump, floor patch
+against `v0.2.0`, its 27 tests green; 31 / 31): tag `v0.2.1` = `ec58eb2`; CI run 40408685419 and
+Publish run 40408929155 green end to end. It carries the `wasmImport` `.wasm` HTTP-error fix and the
+publishing plugin 0.37.0 with automatic publishing — the first release meant to publish itself.
 
 ## Owner actions (🗓️)
 
-- **What does Central show for 0.2.0?** The owner reported it published; at 17:46 and again ~18:10
-  -04:00 the same day `repo1.maven.org` returned 404 for the 0.2.0 files and Central's search index
-  listed only 0.1.2. Confirm the deployment's state on central.sonatype.com → Deployments.
+- **Is anything newer than 0.1.2 public?** The owner reported 0.2.0 published. Measured on
+  `repo1.maven.org` the same day at 17:46 and 18:03 -04:00: the 0.2.0 AND 0.2.1 POMs 404, the
+  metadata lists only 0.1.2; Central's search index lists only 0.1.2 (17:46). Check both deployments
+  on central.sonatype.com → Deployments: PUBLISHING (still syncing), PUBLISHED, or FAILED? 0.2.1 is
+  the test of automatic publishing.
 
 ## Backlog
 
