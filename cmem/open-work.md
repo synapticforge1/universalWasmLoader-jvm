@@ -2,16 +2,16 @@
 
 Only open items; each points at its record. The status line lives here and nowhere else.
 
-**Status (2026-10-26):** released **0.1.2** (Maven Central, 2026-06-24). Unreleased on `main`: SPEC
-§10 (`1e1ecb8`, a behaviour change — README Breaking Changes `_next release_`) and the 2026-10-26
-workspace-conformance work (compat gate, stamped fixtures, memory). Gate: 27 / 27 tests, floor
-**patch** against `v0.1.2`, previous-tag tests 24 / 24.
+**Status (2026-10-26):** **0.2.0 bumped, NOT released** (owner: "bump to the next minor release";
+through the gate, floor patch, previous-tag tests 24 / 24). Last published: **0.1.2** (Maven Central,
+2026-06-24). 0.2.0 carries SPEC §10 (`1e1ecb8`; the `_initialize` behaviour change is its Breaking
+Changes row) and the workspace-conformance merge `894db5e`. Gate: 27 / 27 tests.
 
 ## Owner actions (🗓️)
 
-- **Next release and its number.** The gate allows a patch (the API did not change), but the
-  `_initialize` behaviour change has a Breaking Changes row — loader-dart shipped the same change as a
-  minor (0.2.0). The bump level is the owner's call; `./gradlew bump -Pkind=minor` would give 0.2.0.
+- **Release 0.2.0**: push `main`, then `./gradlew release` (tags `v0.2.0`, force-pushes the tag →
+  `publish.yml` runs the gate and publishes), then the Central Portal **Publish** click. It is also
+  the first run of the gate's CI half and the first release from the `synapticforge1` org.
 - **Central Portal auto-publish**: each release still needs the manual Publish click unless
   `automaticRelease = true` is set ([overview.md](overview.md) § Build and release).
 
