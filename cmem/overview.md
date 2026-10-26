@@ -72,7 +72,7 @@ scripts/compat.main.kts              # compatibility gate + version bump (replac
   a non-2xx or an `IOException` falls back to raw exports (only `IOException` is caught, so an
   interrupt or cancellation is not swallowed). Tests on a local JDK `HttpServer`: 404 / 500 on the
   `.wasm`, `.wasm` + `.wit` over HTTP, and the `.wit` 404 / 500 fallback.
-  🔒 **Timeouts (owner, 2026-10-26: "30s sounds good"; unreleased → 0.3.0):** fixed
+  🔒 **Timeouts (owner, 2026-10-26: "30s sounds good"; shipped in 0.3.0):** fixed
   `HTTP_CONNECT_TIMEOUT` 10 s + `HTTP_RESPONSE_TIMEOUT` 30 s (until the response starts — the JDK
   request timeout; a server that sends headers and then stalls the BODY is not covered, not tested),
   no configuration (design principle 3). Before: none at all, so a server that accepted and never
@@ -108,7 +108,7 @@ is detected at instantiation from the export section (`detectStringAbi`):
 Import string params (WASM → host) are decoded via `MemRef.current`, set to `instance.memory()`
 right after `Instance.build()` (memory exists only after instantiation).
 
-### Raw mode (no `.wit`) — typed by the export's wasm signature (2026-10-26, unreleased → 0.3.0)
+### Raw mode (no `.wit`) — typed by the export's wasm signature (2026-10-26, shipped in 0.3.0)
 
 SPEC §63 falls back to raw exports when there is no `.wit`. Until 2026-10-26 raw mode encoded by
 the JVM argument type and returned every result as a raw `Long` — measured with a probe on the
@@ -208,6 +208,19 @@ mode + three timeout).
   `E4D45440A37F73383B38842FFF9D45E2AFFFFB6D`, public key on `keyserver.ubuntu.com` and
   `keys.openpgp.org`. The private half lives only in the secrets.
 - Namespace: `io.github.jrmarcum`, verified on the Central Portal via the `jrmarcum` GitHub account.
+
+## Release history (Maven Central `io.github.jrmarcum:universal-wasm-loader-jvm`)
+
+| Version | Tag → commit | What it carried | How it was published | On `repo1` (read 2026-10-26 18:29) |
+| --- | --- | --- | --- | --- |
+| 0.1.0, 0.1.1 | `09bf5c0`, `399e7ff` | early builds (2026-05-20) | never reached Central | absent |
+| 0.1.2 | `f3fba2d` | first Central release; SPEC 3.0.0 string returns (`a434c6d`) | 2026-06-24 by a `workflow_dispatch` on `main` (`9f2c6d5`, run 28141421397), manual Publish click | live |
+| 0.2.0 | `6812998` | SPEC §10 (`1e1ecb8`; `_initialize` Breaking row); workspace conformance (`894db5e`) | run 40406408422 (first from the org, first through the gate); Publish clicked by the owner ~18:25, after 0.2.1 | syncing |
+| 0.2.1 | `ec58eb2` | `wasmImport` reports a `.wasm` HTTP error (`462119d`); plugin 0.37.0, no deprecation; automatic publishing | run 40408929155, published itself | live |
+| 0.3.0 | `33eb176` | raw mode typed by the wasm signature (`c201052`); `wasmImport` timeouts 10 s / 30 s (`8660eac`); two Breaking rows | run 40411608731, published itself | syncing |
+
+Every release from 0.2.0 on went through the compatibility gate locally (`bump`) and on the runner
+(`release`), with the previous tag's tests green against the new library.
 
 ## Development notes
 

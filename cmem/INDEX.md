@@ -34,7 +34,7 @@ workspace floor (`../../../cmem/`) applies underneath; this repo's files govern 
 | File | What it holds |
 | --- | --- |
 | [open-work.md](open-work.md) | The status line and the ONE list of open items: owner calls, backlog, ledger answers pending |
-| [overview.md](overview.md) | What the port is and why: runtime, coordinates (🔒 groupId stays), design principles, API, ABI, SPEC §10, tests and fixtures, build / release / publishing path, credentials |
+| [overview.md](overview.md) | What the port is and why: runtime, coordinates (🔒 groupId stays), design principles, API (HTTP errors, timeouts), ABI and typed raw mode, SPEC §10, tests and fixtures, build / release / automatic publishing, credentials, release history |
 | [working-rules.md](working-rules.md) | How an increment is done here: ledger first, git, the gate, `.main.kts` scripts, the privacy rule and its path test |
 | [compat-gate.md](compat-gate.md) | The SemVer compatibility gate: API snapshot, floor, previous-tag tests, Breaking row; the `bump.sh` port proof; the inversion; traps |
 | [best-practices.md](best-practices.md) | This repo's own rules (§ L) and the workspace's 28 ★ rules, copied verbatim under a dated stamp |
