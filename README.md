@@ -183,7 +183,7 @@ library).
 
 | Version | What changed | How to migrate |
 | --- | --- | --- |
-| _next release_ | A module's exported `_initialize` (SPEC §10.1) is now called automatically, once, right after instantiation (behaviour, not API). | Remove any manual call to `_initialize`; calling it again initializes the module twice. |
+| 0.2.0 | A module's exported `_initialize` (SPEC §10.1) is now called automatically, once, right after instantiation (behaviour, not API). | Remove any manual call to `_initialize`; calling it again initializes the module twice. |
 
 ## Building from Source
 
