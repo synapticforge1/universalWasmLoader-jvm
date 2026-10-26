@@ -30,9 +30,10 @@ on:
   push:
     tags:
       - 'v*'
-  # Manual trigger: Actions → Publish → "Run workflow". Pick the TAG (e.g. v0.1.2)
-  # from the ref dropdown to reproduce a tag-push run exactly (release bookkeeping
-  # included). Running it against a branch publishes but skips the release steps.
+  # Manual trigger: Actions → Publish → "Run workflow". Pick the TAG (v0.2.0 or
+  # later — older tags predate this trigger, so GitHub refuses them) from the ref
+  # dropdown to reproduce a tag-push run exactly (release bookkeeping included).
+  # Never run it against a branch: it would publish without the tag checks.
   workflow_dispatch: {}
 
 jobs:
