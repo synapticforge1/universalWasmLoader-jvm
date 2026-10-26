@@ -76,8 +76,10 @@ had (and so cannot be compared). `bump.sh` was removed after the proof.
 Self-test inverted too: `allowed = kind >= Level.PATCH` → 3 of 30 checks fail, the three that guard
 the floor.
 
-**CI half: UNMEASURED** until the first push / tag runs `ci.yml` and `publish.yml` on GitHub (the
-`kotlin` download fallback, the shallow tag fetch, `release` on the runner).
+**CI half: measured 2026-10-26.** `ci.yml` run 40406036278 on `6812998` green (kotlin setup,
+`check`, self-test); `publish.yml` run 40406408422 on tag `v0.2.0` green — the shallow tag fetch,
+`check`, the gate's `selftest` + `release` (`v0.1.2` → `0.2.0`, minor) on the runner, then the
+upload. Whether the runner had `kotlin` preinstalled or used the download fallback was not read.
 
 ## Traps met building it
 

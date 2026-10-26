@@ -2,16 +2,17 @@
 
 Only open items; each points at its record. The status line lives here and nowhere else.
 
-**Status (2026-10-26):** **0.2.0 bumped, NOT released** (owner: "bump to the next minor release";
-through the gate, floor patch, previous-tag tests 24 / 24). Last published: **0.1.2** (Maven Central,
-2026-06-24). 0.2.0 carries SPEC §10 (`1e1ecb8`; the `_initialize` behaviour change is its Breaking
-Changes row) and the workspace-conformance merge `894db5e`. Gate: 27 / 27 tests.
+**Status (2026-10-26):** **0.2.0 uploaded, awaiting the Central Portal Publish click.** `main` and
+tag `v0.2.0` = `6812998` on GitHub; Publish run 40406408422 green end to end (check, compatibility
+gate, upload, `release/v0.2.0` branch, GitHub Release); `repo1.maven.org` still lists only 0.1.2
+(read 2026-10-26). 0.2.0 carries SPEC §10 (`1e1ecb8`; the `_initialize` behaviour change is its
+Breaking Changes row) and the workspace-conformance merge `894db5e`. Gate: 27 / 27 tests.
 
 ## Owner actions (🗓️)
 
-- **Release 0.2.0**: push `main`, then `./gradlew release` (tags `v0.2.0`, force-pushes the tag →
-  `publish.yml` runs the gate and publishes), then the Central Portal **Publish** click. It is also
-  the first run of the gate's CI half and the first release from the `synapticforge1` org.
+- **Click Publish** at central.sonatype.com → Deployments for 0.2.0, then confirm it appears in
+  `https://repo1.maven.org/maven2/io/github/jrmarcum/universal-wasm-loader-jvm/maven-metadata.xml`
+  (mirror sync lags 15 min – hours).
 - **Central Portal auto-publish**: each release still needs the manual Publish click unless
   `automaticRelease = true` is set ([overview.md](overview.md) § Build and release).
 
@@ -23,7 +24,6 @@ Changes row) and the workspace-conformance merge `894db5e`. Gate: 27 / 27 tests.
   so a 500 / timeout silently falls back to raw mode (★ 4.3 silent-wrong). loader-js fixed its `.wasm`
   half in `64551fa`; loader-dotnet logged the `.wit` half (workspace C14, C16). Fix both with a test
   per path; decide the `.wit` rule against SPEC (404 = absent, anything else = error?).
-- **CI half of the gate UNMEASURED** until the next push / tag runs on GitHub ([compat-gate.md](compat-gate.md)).
 
 ## Workspace ledger (answers to write after the commit lands)
 
