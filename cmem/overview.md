@@ -130,17 +130,25 @@ right after `Instance.build()` (memory exists only after instantiation).
   bump <kind>`; it refuses a bump below the floor ([compat-gate.md](compat-gate.md)).
 - **Release (owner action):** commit the bump, `./gradlew release` (tags `v<version>`, force-pushes the
   tag) → `publish.yml`: clone the tag + fetch tags → JDK 24+ → `kotlin` → `./gradlew check` →
-  compat `selftest` + `release` → `publishAllPublicationsToMavenCentralRepository` (vanniktech,
-  Central Portal, GPG in-memory signing) → `release/v<version>` branch → `gh release create`.
+  compat `selftest` + `release` → `publishAllPublicationsToMavenCentralRepository` (vanniktech
+  `com.vanniktech.maven.publish` **0.37.0**, Central Portal, GPG in-memory signing) →
+  `release/v<version>` branch → `gh release create`.
   `workflow_dispatch` exists, but GitHub reads it from the workflow file IN the chosen ref: no tag up
   to `v0.1.2` has it (added in `9f2c6d5`, one commit after the `v0.1.2` tag — measured 2026-10-26,
   "Workflow does not exist or does not have a workflow_dispatch trigger in this tag"). It works for
   `v0.2.0` and later tags only. ⚠️ Never dispatch on `main`: it publishes `main`'s version without
   the tag checks (and `0.1.2` already exists on Central). `ci.yml`
   runs `check` + the self-test on push to `main` and on PRs (added 2026-10-26).
-- ⚠️ **Central Portal does not auto-publish**: the upload lands `VALIDATED` and needs the **Publish**
-  button at central.sonatype.com → Deployments (this held `0.1.2`). `automaticRelease = true` in
-  `publishToMavenCentral(...)` would remove the click (owner call, not set).
+- 🔒 **Automatic publishing after the tag (owner, 2026-10-26; first release: 0.2.1):**
+  `publishToMavenCentral(automaticRelease = true)`, so a validated upload publishes itself — no manual
+  Publish click at central.sonatype.com (0.1.2 and 0.2.0 needed one). `--dry-run` shows both
+  `publishAllPublicationsToMavenCentralRepository` (what CI runs) and `publishAndReleaseToMavenCentral`
+  include `enableAutomaticMavenCentralPublishing` and `signMavenPublication`.
+- **Plugin 0.29.0 → 0.37.0 (2026-10-26):** 0.29.0's `publishToMavenCentral` called Gradle's deprecated
+  `StartParameter.isConfigurationCacheRequested` (removed in Gradle 10) — the build's only deprecation
+  warning (`--warning-mode all --stacktrace`); 0.37.0 prints none. From 0.34 `SonatypeHost` is gone
+  (the Central Portal is the only target), so the call takes no host. The generated POM is unchanged
+  (coordinates, developer, scm, dependencies).
 - **Publishing path (workspace H20, recorded 2026-10-26):** a Central Portal **user token** + a GPG key,
   held in four repository secrets — NOT trusted publishing / OIDC, so no policy pins GitHub owner or
   repository ids and the org move needed no policy change. `0.1.2` was published 2026-06-24 by a
