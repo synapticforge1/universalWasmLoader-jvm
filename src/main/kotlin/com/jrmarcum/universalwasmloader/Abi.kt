@@ -73,18 +73,38 @@ internal object Abi {
         else   -> wasmResult[0].toInt()
     }
 
-    // Decode a raw Long to a JVM type for raw-mode (no WIT info).
-    fun decodeRawValue(value: Long): Any = value
+    // Raw mode (no WIT): decode a result slot by the export's own wasm result type,
+    // as JS raw WebAssembly.Exports do. Before 0.3.0 the slot came back as a raw Long,
+    // so an f64 result was its bit pattern.
+    fun decodeRawValue(type: ValueType, value: Long): Any = when (type) {
+        ValueType.I32 -> value.toInt()
+        ValueType.I64 -> value
+        ValueType.F32 -> Float.fromBits(value.toInt())
+        ValueType.F64 -> Double.fromBits(value)
+        else          -> value   // v128 / reference slots: passed through untouched
+    }
 
-    // Encode a JVM value to a raw Long for raw-mode calls (no WIT type info).
-    fun encodeRawArg(value: Any?): Long = when (value) {
-        is Int     -> value.toLong()
-        is Long    -> value
-        is Float   -> value.toBits().toLong()
-        is Double  -> value.toBits()
-        is Boolean -> if (value) 1L else 0L
-        is Number  -> value.toLong()
-        else       -> 0L
+    // Raw mode (no WIT): convert a JVM argument to the export's own wasm parameter type.
+    // Numbers convert like JS ToNumber (an Int passed to an f64 parameter is 2 → 2.0);
+    // a Boolean is 1 / 0. Anything else throws — it used to become 0 silently.
+    fun encodeRawArg(fnName: String, index: Int, type: ValueType, value: Any?): Long {
+        val n: Number = when (value) {
+            is Number  -> value
+            is Boolean -> if (value) 1 else 0
+            else -> throw IllegalArgumentException(
+                "argument ${index + 1} of '$fnName' is ${value?.let { it::class.simpleName } ?: "null"}; " +
+                    "raw mode (no .wit) passes numbers and booleans only — strings and other types need the module's .wit"
+            )
+        }
+        return when (type) {
+            ValueType.I32 -> n.toInt().toLong()
+            ValueType.I64 -> n.toLong()
+            ValueType.F32 -> n.toFloat().toRawBits().toLong()
+            ValueType.F64 -> n.toDouble().toRawBits()
+            else -> throw IllegalArgumentException(
+                "parameter ${index + 1} of '$fnName' has wasm type $type, which raw mode cannot pass"
+            )
+        }
     }
 
     // Build the Chicory host functions for the WIT import section (the "env" namespace).

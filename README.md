@@ -129,7 +129,10 @@ println(result)   // 7
 3. Applies the Canonical ABI (wasmtime) — bool and string types are handled automatically
 4. Returns an ABI-translated `ModuleHandle` keyed by camelCase WIT export names
 
-If no `.wit` file is found, raw WASM exports are returned with type-inferred encoding.
+If no `.wit` file is found, the module's raw exports are used, typed by the export's own wasm
+signature (as JS raw `WebAssembly.Exports`): numbers and booleans are converted to each parameter's
+type (`2` → `2.0` for an f64), results come back as `Int` (i32), `Long` (i64), `Float` (f32) or
+`Double` (f64). Strings and host callbacks need the `.wit`; without it they throw a clear error.
 
 ## API Reference
 
@@ -183,6 +186,7 @@ library).
 
 | Version | What changed | How to migrate |
 | --- | --- | --- |
+| _next release_ | Raw mode (no `.wit`) follows each export's wasm signature: an i32 result is an `Int` (was a `Long`), f32 / f64 results are `Float` / `Double` (were their raw bit patterns), arguments convert to the parameter types, and an argument that cannot convert (a `String`, `null`), a wrong argument count, or an unknown export throws `IllegalArgumentException` (were silently `0`, an `ArrayIndexOutOfBoundsException`, a `NullPointerException`). | Drop casts like `as Long` on i32 results (`(r as Number).toInt()` works before and after); remove any decoding of float bit patterns. |
 | 0.2.0 | A module's exported `_initialize` (SPEC §10.1) is now called automatically, once, right after instantiation (behaviour, not API). | Remove any manual call to `_initialize`; calling it again initializes the module twice. |
 
 ## Building from Source
