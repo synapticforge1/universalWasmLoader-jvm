@@ -23,6 +23,11 @@ the next free number; numbers are never reused.
   `bump.sh` ↔ port proof compared `❌` lines that neither side's decoding could see, so `errSame`
   read True on every case; and `bump.sh`'s own error path was silent under `pipefail` (2026-10-26,
   § The port). [universalWasmLoader-jvm; cf. workspace 2.1]
+- **L5 A fallback path is a product path: test it with every type it can be handed.** Raw mode (no
+  `.wit`, SPEC §63) returned f64 results as their bit patterns and turned a `String` argument into
+  `0` from 0.1.0 to 0.2.1; its one test (`init_check`) returned an i32, and memory claimed it decoded
+  by `ValueType` (2026-10-26, [overview.md](overview.md) § Raw mode). [universalWasmLoader-jvm;
+  cf. workspace 4.3]
 
 ## ★ The workspace's convergent rules — a COPY, stamped 2026-10-26 (workspace letters H6, H24, H27, C8)
 

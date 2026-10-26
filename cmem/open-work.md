@@ -11,6 +11,9 @@ the same day `repo1.maven.org` still served only 0.1.2 (0.2.0 files 404) — mir
 against `v0.2.0`, its 27 tests green; 31 / 31): tag `v0.2.1` = `ec58eb2`; CI run 40408685419 and
 Publish run 40408929155 green end to end. It carries the `wasmImport` `.wasm` HTTP-error fix and the
 publishing plugin 0.37.0 with automatic publishing — the first release meant to publish itself.
+**Unreleased on `main` since 0.2.1:** raw mode (no `.wit`) typed by the export's wasm signature
+(float results were bit patterns, bad args silently `0`); a behaviour change with a `_next release_`
+Breaking Changes row → **0.3.0** when the owner says. 37 / 37; raw calls measured faster, not slower.
 
 ## Owner actions (🗓️)
 

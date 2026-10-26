@@ -349,6 +349,66 @@ class LoaderTest {
     }
 
     // ---------------------------------------------------------------------------
+    // Raw mode (no .wit) — arguments and results follow the export's own wasm
+    // signature, as JS raw WebAssembly.Exports do; what cannot convert throws.
+    // ---------------------------------------------------------------------------
+
+    /** A copy of a fixture alone in a temp dir, so no companion .wit is found. */
+    private fun rawCopy(name: String): String {
+        val dir = java.nio.file.Files.createTempDirectory("uwl-raw").toFile().apply { deleteOnExit() }
+        val f = java.io.File(dir, name)
+        java.io.File("src/test/resources/tests/$name").copyTo(f)
+        f.deleteOnExit()
+        return f.path
+    }
+
+    @Test
+    fun `raw mode decodes results by the export's result type`() {
+        val m = wasmLoad(rawCopy("math_50.wasm"))
+        assertEquals(7, m.call("add", 3, 4))              // i32 → Int
+        assertEquals(10.0, m.call("multiply", 2.5, 4.0))  // f64 → Double, not its bit pattern
+        assertEquals(1, wasmLoad(rawCopy("booleans_50.wasm")).call("isPositive", 1.0)) // wasm bool is i32
+    }
+
+    @Test
+    fun `raw mode converts arguments to the export's parameter types`() {
+        val m = wasmLoad(rawCopy("math_50.wasm"))
+        assertEquals(8.0, m.call("multiply", 2, 4))       // Int args to f64 params
+        assertEquals(7, m.call("add", 3L, 4L))            // Long args to i32 params
+    }
+
+    @Test
+    fun `raw mode refuses an argument that cannot convert`() {
+        val m = wasmLoad(rawCopy("math_50.wasm"))
+        val e = assertThrows(IllegalArgumentException::class.java) { m.call("add", "3", 4) }
+        assertTrue(e.message!!.contains("argument 1 of 'add'"), e.message)
+        assertTrue(e.message!!.contains(".wit"), e.message)
+    }
+
+    @Test
+    fun `raw mode refuses a wrong argument count`() {
+        val m = wasmLoad(rawCopy("math_50.wasm"))
+        val e = assertThrows(IllegalArgumentException::class.java) { m.call("add", 3) }
+        assertEquals("'add' takes 2 arguments, got 1", e.message)
+    }
+
+    @Test
+    fun `raw mode refuses an unknown export`() {
+        val m = wasmLoad(rawCopy("math_50.wasm"))
+        val e = assertThrows(IllegalArgumentException::class.java) { m.call("nope") }
+        assertTrue(e.message!!.startsWith("no exported function 'nope'"), e.message)
+    }
+
+    @Test
+    fun `raw mode names the missing wit when the module imports host functions`() {
+        val e = assertThrows(IllegalStateException::class.java) {
+            wasmLoad(rawCopy("imports_50.wasm"), Callbacks().on("envMul") { a, b -> (a as Double) * (b as Double) })
+        }
+        assertTrue(e.message!!.contains("no companion .wit"), e.message)
+        assertTrue(e.message!!.contains("env_mul"), e.message)
+    }
+
+    // ---------------------------------------------------------------------------
     // SPEC §7 — the fixtures are the stamped reference set, unmodified
     // ---------------------------------------------------------------------------
 
