@@ -16,6 +16,8 @@ import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
+import java.net.http.HttpTimeoutException
+import java.time.Duration
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.util.concurrent.ArrayBlockingQueue
@@ -201,31 +203,46 @@ suspend fun wasmImport(source: String, callbacks: Callbacks = Callbacks()): Modu
         }
     }
 
-private suspend fun loadFromUrl(source: String, callbacks: Callbacks): ModuleHandle {
+// wasmImport's network timeouts (owner, 2026-10-26): fixed, no configuration. Without
+// them a server that accepts the connection and never answers hangs wasmImport forever.
+internal val HTTP_CONNECT_TIMEOUT: Duration = Duration.ofSeconds(10)
+internal val HTTP_RESPONSE_TIMEOUT: Duration = Duration.ofSeconds(30)
+
+internal suspend fun loadFromUrl(
+    source: String,
+    callbacks: Callbacks,
+    connectTimeout: Duration = HTTP_CONNECT_TIMEOUT,
+    responseTimeout: Duration = HTTP_RESPONSE_TIMEOUT,
+): ModuleHandle {
     val (cleanUrl, version) = parseVersionSuffix(source)
     val witUrl = cleanUrl.replace(".wasm", ".wit")
-    val httpClient = HttpClient.newHttpClient()
+    val httpClient = HttpClient.newBuilder().connectTimeout(connectTimeout).build()
 
     // An HTTP error on the .wasm is reported as one. Without this check a 404 / 500
     // error page reached Chicory as module bytes and surfaced as a MalformedException.
+    // A timeout throws HttpTimeoutException (an IOException) naming the URL.
     val wasmBytes = withContext(Dispatchers.IO) {
-        val resp = httpClient.send(
-            HttpRequest.newBuilder().uri(URI.create(cleanUrl)).build(),
-            HttpResponse.BodyHandlers.ofByteArray()
-        )
+        val resp = try {
+            httpClient.send(
+                HttpRequest.newBuilder().uri(URI.create(cleanUrl)).timeout(responseTimeout).build(),
+                HttpResponse.BodyHandlers.ofByteArray()
+            )
+        } catch (e: HttpTimeoutException) {
+            throw HttpTimeoutException("wasmImport: no response within $responseTimeout for $cleanUrl (${e.message})")
+        }
         if (resp.statusCode() !in 200..299) {
             throw java.io.IOException("wasmImport: HTTP ${resp.statusCode()} for $cleanUrl")
         }
         resp.body()
     }
 
-    // SPEC §63: a .wit that cannot be fetched (non-2xx status or a network error)
-    // falls back to raw exports. Only I/O failures are caught, so an interrupt or a
-    // coroutine cancellation is not swallowed.
+    // SPEC §63: a .wit that cannot be fetched (non-2xx status, a network error or a
+    // timeout) falls back to raw exports. Only I/O failures are caught, so an interrupt
+    // or a coroutine cancellation is not swallowed.
     val witSource = withContext(Dispatchers.IO) {
         try {
             val resp = httpClient.send(
-                HttpRequest.newBuilder().uri(URI.create(witUrl)).build(),
+                HttpRequest.newBuilder().uri(URI.create(witUrl)).timeout(responseTimeout).build(),
                 HttpResponse.BodyHandlers.ofString()
             )
             if (resp.statusCode() in 200..299) resp.body() else null
