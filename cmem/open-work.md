@@ -4,7 +4,7 @@ Only open items; each points at its record. The status line lives here and nowhe
 
 **Status (2026-11-08):** **0.4.0 released (SPEC 4.0.0)**: tag `v0.4.0` = `264e6f3` = `origin/main`;
 Publish run 42512825706 green in all three jobs (the new C30 split); GitHub Release created;
-Central still syncing. History purged (H19) and force-pushed the same day: every commit id after the
+on Central the owner reports 0.4.0 "in process of publishing" (2026-11-08, after the run). History purged (H19) and force-pushed the same day: every commit id after the
 root changed, see [history-map-2026-11-08.md](history-map-2026-11-08.md). Gate: 62 / 62 tests.
 Every release, its contents and run: [overview.md](overview.md) § Release history.
 
@@ -15,8 +15,6 @@ Every release, its contents and run: [overview.md](overview.md) § Release histo
   (`<latest>0.4.0</latest>`), then point the README install snippets at 0.4.0 (they say 0.3.0
   until it is live). If it is absent the next day, read its state on
   `https://central.sonatype.com/publishing/deployments` (login required).
-- **Delete the pre-purge backup** `cmem/local/backups/pre-purge-2026-11-08.bundle` when satisfied.
-  It is private and untracked, but it still holds the old paths.
 - **H19 follow-up: the GitHub Support request** so that the old commits are no longer served by hash
   ([history-map-2026-11-08.md](history-map-2026-11-08.md) § Still open). The purge itself is done.
 

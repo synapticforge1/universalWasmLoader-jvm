@@ -13,7 +13,9 @@ profile. The workspace's H25 scan (2026-10-26) read ref tips only and missed it.
 
 ## How
 
-- Backup first: a bundle of all 26 refs in the gitignored `cmem/local/backups/`.
+- Backup first: a bundle of all 26 refs in the gitignored `cmem/local/backups/`. It was deleted
+  on the owner's word ("purge the backups", 2026-11-08). The old objects were already pruned
+  locally (`gc --prune=now`), so no local copy of the pre-purge history remains.
 - `git filter-branch --index-filter 'git rm -r -q --cached --ignore-unmatch .gradle build'
   --tag-name-filter cat -- --branches --tags ^a978fbc`. Index only, no checkout. The tags are
   lightweight. **The root `a978fbc` ("Initial commit", GitHub-signed, clean tree) is excluded, so it
