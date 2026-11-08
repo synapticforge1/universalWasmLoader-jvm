@@ -177,8 +177,9 @@ off; return check off; unknown type → `s32`; export check off; unreadable `.wi
 14 tests went red, each in its mutant's group, and none outside them. Gate: floor **major**
 (`SPEC.md v3.0.0 → v4.0.0` + 8 added members). v0.3.0's tests do not compile against the new code
 (they call the removed internals `HTTP_RESPONSE_TIMEOUT` / `loadFromUrl(responseTimeout=)`), and a
-major floor does not require them. **Version decision: 0.4.0** (pre-1.0 Rule 6 minor; README
-`_next release_` row present); not bumped. Push, bump and release are the owner's.
+major floor does not require them. **Released as 0.4.0** (pre-1.0 Rule 6 minor; 🔒 owner: "yes
+release 0.4.0"), § Release history. Post-purge ids: surface `c1c6160`, behaviour `8b0db4f`, merge
+`a8bade1`.
 
 ## SPEC §10 — producer model (2026-07-05, `1e1ecb8`)
 
@@ -226,8 +227,8 @@ refusals added 22, § SPEC 4.0.0).
   clone's remote URL and unpinned downloads (the JDK was "latest 25"). `gradle-wrapper.properties`
   now pins the Gradle distribution (`distributionSha256Sum`, 9.5.1, checked against a download
   2026-11-08). `--dry-run` of the publish command: no `:test`; `signMavenPublication` and the upload
-  are in the graph. **First run: the 0.4.0 release** (no `workflow_dispatch` test was possible
-  without a tag).
+  are in the graph. **First run: the 0.4.0 release, run 42512825706, all three jobs green**
+  (2026-11-08). The pinned Gradle checksum had already passed in `ci.yml` run 42512645800.
   `workflow_dispatch` exists, but GitHub reads it from the workflow file IN the chosen ref: no tag up
   to `v0.1.2` has it (added in `9f2c6d5`, one commit after the `v0.1.2` tag — measured 2026-10-26,
   "Workflow does not exist or does not have a workflow_dispatch trigger in this tag"). It works for
@@ -274,16 +275,21 @@ refusals added 22, § SPEC 4.0.0).
 
 ## Release history (Maven Central `io.github.jrmarcum:universal-wasm-loader-jvm`)
 
-| Version | Tag → commit | What it carried | How it was published | On `repo1` (read 2026-10-26 18:29) |
+Commit ids in this table are POST-purge (H19, 2026-11-08); the pre-purge ids cited elsewhere are in
+[history-map-2026-11-08.md](history-map-2026-11-08.md).
+
+| Version | Tag → commit | What it carried | How it was published | On `repo1` (read 2026-11-08) |
 | --- | --- | --- | --- | --- |
-| 0.1.0, 0.1.1 | `09bf5c0`, `399e7ff` | early builds (2026-05-20) | never reached Central | absent |
-| 0.1.2 | `f3fba2d` | first Central release; SPEC 3.0.0 string returns (`a434c6d`) | 2026-06-24 by a `workflow_dispatch` on `main` (`9f2c6d5`, run 28141421397), manual Publish click | live |
-| 0.2.0 | `6812998` | SPEC §10 (`1e1ecb8`; `_initialize` Breaking row); workspace conformance (`894db5e`) | run 40406408422 (first from the org, first through the gate); Publish clicked by the owner ~18:25, after 0.2.1 | syncing |
-| 0.2.1 | `ec58eb2` | `wasmImport` reports a `.wasm` HTTP error (`462119d`); plugin 0.37.0, no deprecation; automatic publishing | run 40408929155, published itself | live |
-| 0.3.0 | `33eb176` | raw mode typed by the wasm signature (`c201052`); `wasmImport` timeouts 10 s / 30 s (`8660eac`); two Breaking rows | run 40411608731, published itself | syncing |
+| 0.1.0, 0.1.1 | `322e1d9`, `da2777a` | early builds (2026-05-20) | never reached Central | absent |
+| 0.1.2 | `19a3757` | first Central release; SPEC 3.0.0 string returns (`86e755b`) | 2026-06-24 by a `workflow_dispatch` on `main` (`e8c12ff`, run 28141421397), manual Publish click | live |
+| 0.2.0 | `ef3846b` | SPEC §10 (`47c7813`; `_initialize` Breaking row); workspace conformance (`01ef84f`) | run 40406408422 (first from the org, first through the gate); Publish clicked by the owner | live |
+| 0.2.1 | `5ce187e` | `wasmImport` reports a `.wasm` HTTP error (`01a07ae`); plugin 0.37.0, no deprecation; automatic publishing | run 40408929155, published itself | live |
+| 0.3.0 | `cf53474` | raw mode typed by the wasm signature (`d2db3ec`); `wasmImport` timeouts 10 s / 30 s (`fe91d4b`); two Breaking rows | run 40411608731, published itself | live (`<latest>`) |
+| 0.4.0 | `264e6f3` | **SPEC 4.0.0** (`c1c6160` surface + `8b0db4f` behaviour, merge `a8bade1`); the C30 three-job workflow (`ec7398c`, merge `5e6c48d`); first release after the H19 purge | run 42512825706 (🔒 owner: "yes release 0.4.0"), the first run of the split workflow: `checks` / `publish` / `release` all green; published itself; GitHub Release + `release/v0.4.0` = `264e6f3` | syncing (POM 404 minutes after the run) |
 
 Every release from 0.2.0 on went through the compatibility gate locally (`bump`) and on the runner
-(`release`), with the previous tag's tests green against the new library.
+(`release`). Through 0.3.0 the previous tag's tests were green against the new library; for 0.4.0
+the floor was major, so they were not required (they do not compile against it).
 
 ## Development notes
 

@@ -2,25 +2,23 @@
 
 Only open items; each points at its record. The status line lives here and nowhere else.
 
-**Status (2026-11-08):** **SPEC 4.0.0 done on branch `spec-4.0.0`, merged to local `main`, NOT
-pushed, bumped or released** (workspace C29). Gate: 62 / 62 tests, API snapshot re-baselined
-(additive: `LoadOptions` + a `wasmImport` overload), compat floor major, version decision **0.4.0**.
-Record: [overview.md](overview.md) § SPEC 4.0.0. Released: **0.3.0** (tag `v0.3.0` = `33eb176`,
-SPEC 3.0.0); `origin/main` = `a194253`. Every release, its contents and run: [overview.md](overview.md)
-§ Release history.
+**Status (2026-11-08):** **0.4.0 released (SPEC 4.0.0)**: tag `v0.4.0` = `264e6f3` = `origin/main`;
+Publish run 42512825706 green in all three jobs (the new C30 split); GitHub Release created;
+Central still syncing. History purged (H19) and force-pushed the same day: every commit id after the
+root changed, see [history-map-2026-11-08.md](history-map-2026-11-08.md). Gate: 62 / 62 tests.
+Every release, its contents and run: [overview.md](overview.md) § Release history.
 
 ## Owner actions (🗓️)
 
-- **Release 0.4.0 (SPEC 4.0.0)?** Push `main`, then `./gradlew bump -Pkind=minor` (the gate allows
-  a minor at a major floor before 1.0: Rule 6, `_next release_` row present), commit, `./gradlew
-  release`. Each step is the owner's.
+- **Confirm 0.4.0 appears** in
+  `https://repo1.maven.org/maven2/io/github/jrmarcum/universal-wasm-loader-jvm/maven-metadata.xml`
+  (`<latest>0.4.0</latest>`), then point the README install snippets at 0.4.0 (they say 0.3.0
+  until it is live). If it is absent the next day, read its state on
+  `https://central.sonatype.com/publishing/deployments` (login required).
+- **Delete the pre-purge backup** `cmem/local/backups/pre-purge-2026-11-08.bundle` when satisfied.
+  It is private and untracked, but it still holds the old paths.
 - **H19 follow-up: the GitHub Support request** so that the old commits are no longer served by hash
   ([history-map-2026-11-08.md](history-map-2026-11-08.md) § Still open). The purge itself is done.
-- **Confirm 0.2.0 and 0.3.0 appear** in
-  `https://repo1.maven.org/maven2/io/github/jrmarcum/universal-wasm-loader-jvm/maven-metadata.xml`
-  (`<latest>0.3.0</latest>`). Both were still syncing at 18:29 on 2026-10-26; not re-read since.
-  If either is absent, read its state on `https://central.sonatype.com/publishing/deployments`
-  (login required).
 
 ## Backlog
 
@@ -41,7 +39,7 @@ limit, tested); the WIT call path's linear export lookup (now a map).
 ## Workspace ledger
 
 Rows in `../../../cmem/workspace-correspondence.md` naming this repo. **Answered 2026-11-08:** C29
-(SPEC 4.0.0, the commits named in its cell), H29 (its follow-up, C29), H19 (the finding above;
-nothing purged), C30 and C34 (record-only, read and recorded above). **Answered 2026-10-26** (each
+(SPEC 4.0.0, released in 0.4.0), H29 (its follow-up, C29), H19 (purged and pushed), C30 (the split,
+released in 0.4.0's run) and C34 (record-only); notes row C36. **Answered 2026-10-26** (each
 cell names the commit; C18 carries the notes and releases): H6, H7 / C11, H15, H16, H17 / H25 §1,
 H20, H22 / H25 §3(d), H24 / H27 / C8, H25 §3(b), H28; drift L2, L3, L6, X3; divergence S4.
