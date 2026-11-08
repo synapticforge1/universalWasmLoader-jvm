@@ -4,7 +4,7 @@ A lightweight WebAssembly loader for JVM languages. Works with **Java 24+**, **K
 
 Built on [Chicory](https://github.com/dylibso/chicory) — a pure-Java WebAssembly runtime (its only
 other dependency is `kotlinx-coroutines-core`). Conforms to the cross-language
-[`SPEC.md`](https://github.com/synapticforge1/universalWasmLoader-js/blob/main/SPEC.md) **v3.0.0**,
+[`SPEC.md`](https://github.com/synapticforge1/universalWasmLoader-js/blob/main/SPEC.md) **v4.0.0**,
 kept in the reference implementation, universalWasmLoader-js.
 
 ## Installation

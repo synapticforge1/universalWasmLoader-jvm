@@ -188,16 +188,49 @@ inline fun <reified T : Any> wasmLoad(path: String, callbacks: Callbacks = Callb
 // ---------------------------------------------------------------------------
 
 /**
+ * Options for [wasmImport] (SPEC 4.0.0 §11).
+ *
+ * @property timeout  The time limit for each http(s) fetch — the `.wit`, then the `.wasm` —
+ *   from the request to the last byte of the body. Default 30 s; `null` means no limit. Zero
+ *   or negative is refused. Connecting is also limited to 10 s (or [timeout], if shorter).
+ *   Local files are read without a limit.
+ *
+ * Cancellation is the coroutine's own: cancelling the coroutine that runs [wasmImport]
+ * cancels the load and the request in flight; an already-cancelled one fetches nothing.
+ */
+class LoadOptions(val timeout: Duration? = DEFAULT_TIMEOUT) {
+    init {
+        require(timeout == null || (!timeout.isNegative && !timeout.isZero)) {
+            "LoadOptions.timeout must be positive (or null for no limit), got $timeout"
+        }
+    }
+
+    companion object {
+        /** The default time limit per fetch: 30 s. */
+        @JvmField val DEFAULT_TIMEOUT: Duration = Duration.ofSeconds(30)
+    }
+}
+
+/**
  * Load a `.wasm` file or URL asynchronously. Use this when loading from HTTP/HTTPS
  * or when already inside a coroutine scope. For local files, prefer [wasmLoad].
+ * Uses the default [LoadOptions] (a 30 s limit per fetch).
  *
  * @param source  File path or `http(s)://` URL. Append `@N` to pin to a major version.
  * @param callbacks  Host functions called by the WASM module.
  */
 suspend fun wasmImport(source: String, callbacks: Callbacks = Callbacks()): ModuleHandle =
+    wasmImport(source, callbacks, LoadOptions())
+
+/**
+ * [wasmImport] with explicit [options] (SPEC 4.0.0 §11: the time limit per fetch).
+ * Cancel the calling coroutine to cancel the load.
+ */
+// Surface only in this commit (the API re-baseline, alone); the SPEC 4.0.0 behaviour follows.
+suspend fun wasmImport(source: String, callbacks: Callbacks, options: LoadOptions): ModuleHandle =
     withContext(Dispatchers.IO) {
         if (source.startsWith("http://") || source.startsWith("https://")) {
-            loadFromUrl(source, callbacks)
+            loadFromUrl(source, callbacks, responseTimeout = options.timeout ?: HTTP_RESPONSE_TIMEOUT)
         } else {
             wasmLoad(source, callbacks)
         }
