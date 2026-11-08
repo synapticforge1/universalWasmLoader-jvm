@@ -264,10 +264,13 @@ git commit -am "bump version to v0.1.3"
 ./gradlew release              # tags v<version> and force-pushes the tag
 ```
 
-Pushing the `v*` tag runs `.github/workflows/publish.yml`, which runs the checks and the
-compatibility gate against the previous tag, then publishes the signed
-artifacts to **Maven Central** (Sonatype Central Portal) via the `com.vanniktech.maven.publish`
-plugin, then cuts a GitHub Release.
+Pushing the `v*` tag runs `.github/workflows/publish.yml`. It has three jobs, each with only the
+privilege it needs. `checks` (read-only, no secrets) runs the tests and the compatibility gate
+against the previous tag. `publish` (read-only, on a fresh runner) checks the tag still points at
+the tested commit, then publishes the signed artifacts to **Maven Central** (Sonatype Central
+Portal) via the `com.vanniktech.maven.publish` plugin; it is the only job that sees the secrets.
+`release` (write access, no build) creates the `release/<tag>` branch and the GitHub Release. The
+JDK, the Kotlin compiler and the Gradle distribution are pinned by version and SHA-256.
 
 > **`run:`-only workflow.** The publish workflow uses **no third-party `uses:` steps**: checkout is
 > `git clone`, the JDK is installed via `run:`, and the committed Gradle wrapper drives the build.
