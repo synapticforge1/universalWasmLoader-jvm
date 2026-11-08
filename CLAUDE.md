@@ -19,7 +19,8 @@
 
 The JVM (Kotlin) port of the Universal WASM Loader, on Chicory (pure Java, no native code). Maven
 Central `io.github.jrmarcum:universal-wasm-loader-jvm`, package `com.jrmarcum.universalwasmloader`
-(🔒 both stay, owner 2026-10-26). The spec is universalWasmLoader-js's `SPEC.md` (v3.0.0); no local copy.
+(🔒 both stay, owner 2026-10-26). The spec is universalWasmLoader-js's `SPEC.md` (v4.0.0 since 2026-11-08; 0.3.0 and earlier
+follow v3.0.0); no local copy.
 State and open items: [`cmem/open-work.md`](cmem/open-work.md).
 
 ## What bites in the first five minutes

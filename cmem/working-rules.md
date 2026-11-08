@@ -33,7 +33,7 @@ H22, H28).
   the bump itself runs the same gate and refuses below the floor. Design: [compat-gate.md](compat-gate.md).
 - **A public API change re-baselines in its own commit**: `./gradlew updateLegacyAbi`, with the reason.
 - **Read the counts, not the exit code**: `build/test-results/test/*.xml` (`tests`, `failures`,
-  `errors`). 40 tests on 2026-10-26.
+  `errors`). 62 tests on 2026-11-08.
 - **Invert every new test or gate** before trusting it.
 
 ## Tooling (workspace Tooling rule 1, 🔒 owner 2026-10-22)
@@ -69,5 +69,12 @@ H22, H28).
 - **Scan before committing**, text AND binaries (`-a`; committed `.wasm` can carry DWARF paths):
   `git grep -a -n -i -E '[A-Za-z]:[\\/]+(Programs|Users|scoop|tools)[\\/]|/[a-z]/(Programs|Users)/'`.
   A secret that reached a remote is rotated, not just deleted.
-- **History**: no purge needed here — no drive path in any commit of any ref (workspace measurement
-  for H25, 2026-10-26; the commit address is allowed).
+- **History: a purge IS needed (H19), not yet done — owner's call.** The workspace measurement for
+  H25 (2026-10-26) found "no drive path in any commit of any ref". That missed it. A blob-level scan
+  of every commit (`git grep -a` over `git rev-list --all`, 2026-11-08) finds the owner's project
+  path and user profile in ONE tracked binary, `.gradle/9.5.1/executionHistory/executionHistory.bin`
+  (Gradle's build cache). It was tracked from the first commit `09bf5c0` until `f3fba2d` (2026-06-17,
+  "Stop tracking generated .gradle/ and build/"), in 15 commits. Tags `v0.1.0` (`09bf5c0`) and
+  `v0.1.1` (`399e7ff`) carry it in their trees. `v0.1.1` also tracks `build/` (196 cache and build
+  files in all). Every later tag and the tip are clean; the only other hits are this file's own rule
+  text. The plan and the decision are in [open-work.md](open-work.md). The commit address is allowed.

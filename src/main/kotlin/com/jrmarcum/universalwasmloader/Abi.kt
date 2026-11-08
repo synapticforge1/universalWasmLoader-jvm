@@ -9,6 +9,9 @@ internal class MemRef {
     var current: com.dylibso.chicory.runtime.Memory? = null
 }
 
+/** A host callback returned a value its WIT import cannot carry (SPEC 4.0.0 §4). */
+internal class HostCallbackException(message: String) : IllegalStateException(message)
+
 // Detected at instantiation time; drives string encoding/decoding paths.
 internal enum class StringAbi { CANONICAL, WASIC, NONE }
 
@@ -37,16 +40,42 @@ internal object Abi {
         else           -> listOf(ValueType.I32)
     }
 
-    // Encode a JVM value to one or more raw longs according to its WIT type.
+    /**
+     * SPEC 4.0.0 §4 — the JVM values a WIT type accepts, never coerced: `s32` takes the 32-bit
+     * integer (`Int`, or the narrower `Short` / `Byte`; a `Long` is the s64 kind, refused),
+     * `s64` any of those or a `Long`, `f32` / `f64` a `Float` or `Double` (an `Int` is refused),
+     * `bool` a `Boolean`, `string` a `String`. Returns null when [value] fits, else what it is.
+     */
+    fun mismatch(type: String, value: Any?): String? {
+        val fits = when (type) {
+            "s32"         -> value is Int || value is Short || value is Byte
+            "s64"         -> value is Long || value is Int || value is Short || value is Byte
+            "f32", "f64"  -> value is Double || value is Float
+            "bool"        -> value is Boolean
+            "string"      -> value is String
+            else          -> false
+        }
+        return if (fits) null else describe(value)
+    }
+
+    /** A value as an error message names it: its JVM type, then the value. */
+    fun describe(value: Any?): String = when (value) {
+        null      -> "null"
+        is String -> "String \"${value.take(40)}\""
+        else      -> "${value::class.simpleName ?: value::class.java.name} ${value.toString().take(40)}"
+    }
+
+    // Encode a JVM value to one or more raw longs according to its WIT type. The value has
+    // already passed [mismatch] (ModuleHandle.callWithAbi checks every argument first).
     // String params are allocated in WASM linear memory via the appropriate ABI.
     fun encodeArg(instance: Instance, type: String, value: Any?, stringAbi: StringAbi): List<Long> = when (type) {
-        "s32"  -> listOf(((value as? Number)?.toInt() ?: 0).toLong())
-        "s64"  -> listOf((value as? Number)?.toLong() ?: 0L)
-        "f32"  -> listOf(((value as? Number)?.toFloat() ?: 0f).toBits().toLong())
-        "f64"  -> listOf(((value as? Number)?.toDouble() ?: 0.0).toBits())
-        "bool" -> listOf(if (value as? Boolean == true) 1L else 0L)
+        "s32"  -> listOf((value as Number).toInt().toLong())
+        "s64"  -> listOf((value as Number).toLong())
+        "f32"  -> listOf((value as Number).toFloat().toRawBits().toLong())
+        "f64"  -> listOf((value as Number).toDouble().toRawBits())
+        "bool" -> listOf(if (value as Boolean) 1L else 0L)
         "string" -> {
-            val bytes = (value?.toString() ?: "").toByteArray(Charsets.UTF_8)
+            val bytes = (value as String).toByteArray(Charsets.UTF_8)
             val ptr = when (stringAbi) {
                 StringAbi.CANONICAL ->
                     instance.export("cabi_realloc").apply(0L, 0L, 1L, bytes.size.toLong())[0].toInt()
@@ -58,7 +87,7 @@ internal object Abi {
             instance.memory().write(ptr, bytes)
             listOf(ptr.toLong(), bytes.size.toLong())
         }
-        else -> listOf(((value as? Number)?.toInt() ?: 0).toLong())
+        else -> throw IllegalStateException("unsupported WIT type '$type'") // the parser admits none
     }
 
     // Decode a WASM result (LongArray) to a JVM value according to the WIT return type.
@@ -70,8 +99,14 @@ internal object Abi {
         "f32"  -> Float.fromBits(wasmResult[0].toInt())
         "f64"  -> Double.fromBits(wasmResult[0])
         "bool" -> wasmResult[0] != 0L
-        else   -> wasmResult[0].toInt()
+        else   -> throw IllegalStateException("unsupported WIT result type '$type'")
     }
+
+    /** A host callback's result that WASM cannot wait for (SPEC 4.0.0 §4: refused for every import). */
+    private fun isPending(value: Any?): Boolean =
+        value is java.util.concurrent.Future<*> ||
+            value is java.util.concurrent.CompletionStage<*> ||
+            value is kotlinx.coroutines.Job
 
     // Raw mode (no WIT): decode a result slot by the export's own wasm result type,
     // as JS raw WebAssembly.Exports do. Before 0.3.0 the slot came back as a raw Long,
@@ -143,15 +178,34 @@ internal object Abi {
                     }
                 }
 
+                // Every import has a callback: the loader refused the load otherwise (SPEC 4.0.0 §4).
                 val ret = userCallbacks.invoke(camelKey, jsArgs)
+
+                // SPEC 4.0.0 §4: the callback's value must be the import's WIT result kind, never
+                // coerced (3.0.0 turned null into 0 and truncated 2.9 to 2). The exception reaches
+                // the caller of the export that called the import.
+                if (isPending(ret)) {
+                    throw HostCallbackException(
+                        "host callback '$camelKey' (WIT import ${fn.name}) returned a " +
+                            "${ret!!::class.simpleName ?: "Future"} — a Future / Deferred: WASM cannot wait for it"
+                    )
+                }
+                if (resultType != null) {
+                    mismatch(resultType, ret)?.let {
+                        throw HostCallbackException(
+                            "host callback '$camelKey' (WIT import ${fn.name}) must return $resultType, got $it"
+                        )
+                    }
+                }
 
                 when (resultType) {
                     null   -> longArrayOf()
-                    "bool" -> longArrayOf(if (ret as? Boolean == true) 1L else 0L)
-                    "s64"  -> longArrayOf((ret as? Number)?.toLong() ?: 0L)
-                    "f32"  -> longArrayOf(((ret as? Number)?.toFloat() ?: 0f).toBits().toLong())
-                    "f64"  -> longArrayOf(((ret as? Number)?.toDouble() ?: 0.0).toBits())
-                    else   -> longArrayOf(((ret as? Number)?.toInt() ?: 0).toLong())
+                    "bool" -> longArrayOf(if (ret as Boolean) 1L else 0L)
+                    "s64"  -> longArrayOf((ret as Number).toLong())
+                    "f32"  -> longArrayOf((ret as Number).toFloat().toRawBits().toLong())
+                    "f64"  -> longArrayOf((ret as Number).toDouble().toRawBits())
+                    "s32"  -> longArrayOf((ret as Number).toInt().toLong())
+                    else   -> throw IllegalStateException("unsupported WIT result type '$resultType'") // refused at load
                 }
             }
         }
