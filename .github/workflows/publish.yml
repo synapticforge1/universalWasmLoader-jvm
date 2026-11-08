@@ -1,18 +1,20 @@
 # Publish to Maven Central (Sonatype Central Portal) on a v* tag.
 #
-# ┌─────────────────────────────────────────────────────────────────────────────┐
-# │ run:-ONLY WORKFLOW (historical constraint, now kept by choice).             │
-# │                                                                             │
-# │ Under the personal `jrmarcum` account, the Actions policy permitted ONLY    │
-# │ `jrmarcum`-owned actions, so any third-party `uses:` step (actions/checkout,│
-# │ actions/setup-java, …) caused a `startup_failure`. Every step here is       │
-# │ therefore a plain `run:` step — checkout via `git clone`, install the JDK   │
-# │ via `run:`, and use the committed Gradle wrapper (`./gradlew`).              │
-# │                                                                             │
-# │ Since the move to the `synapticforge1` org (2026-10), the org policy is     │
-# │ "Allow all actions and reusable workflows", so `uses:` steps would now be   │
-# │ allowed. The run:-only form is kept because it is the proven release path.  │
-# └─────────────────────────────────────────────────────────────────────────────┘
+# THREE JOBS, EACH WITH ONLY THE PRIVILEGE IT NEEDS (workspace C30; owner, 2026-11-08:
+# "yes use the C30 split workflow"; models: loader-dart cb7bc26, loader-go 2ff71ef):
+#
+#   checks   contents: read. Tokenless clone. Runs everything that executes third-party
+#            code for the gate: the build, the tests, the compatibility gate (which also
+#            runs the previous tag's tests). No secret, no write token.
+#   publish  contents: read. A fresh runner and a tokenless clone; refuses unless the tag
+#            still points at the commit `checks` passed. Runs only the Gradle publish task
+#            (tests skipped). The four publishing secrets exist in that one step's env.
+#   release  contents: write. No checkout and no build: `git ls-remote` + `gh` only.
+#            Creates the release/<tag> branch and the GitHub Release.
+#
+# Every download is pinned by version AND sha256 (the JDK, the Kotlin compiler; the Gradle
+# distribution through gradle-wrapper.properties' distributionSha256Sum). No `uses:` steps.
+# No `concurrency:` group: a later run queues instead of cancelling one mid-publish (C30 (2)).
 #
 # Required GitHub repository secrets (Settings → Secrets and variables → Actions):
 #   MAVEN_CENTRAL_USERNAME   Central Portal user token name   (→ ORG_GRADLE_PROJECT_mavenCentralUsername)
@@ -20,9 +22,8 @@
 #   GPG_PRIVATE_KEY          ASCII-armored GPG private key    (→ ORG_GRADLE_PROJECT_signingInMemoryKey)
 #   GPG_PASSPHRASE           passphrase for that GPG key      (→ ORG_GRADLE_PROJECT_signingInMemoryKeyPassword)
 #
-# The com.vanniktech.maven.publish plugin reads the ORG_GRADLE_PROJECT_* names
-# directly (in-memory signing + Central Portal upload); no settings.xml or
-# secring.gpg file is needed.
+# The com.vanniktech.maven.publish plugin reads the ORG_GRADLE_PROJECT_* names directly
+# (in-memory signing + Central Portal upload); no settings.xml or secring.gpg file is needed.
 
 name: Publish
 
@@ -30,112 +31,125 @@ on:
   push:
     tags:
       - 'v*'
-  # Manual trigger: Actions → Publish → "Run workflow". Pick the TAG (v0.2.0 or
-  # later — older tags predate this trigger, so GitHub refuses them) from the ref
-  # dropdown to reproduce a tag-push run exactly (release bookkeeping included).
-  # Never run it against a branch: it would publish without the tag checks.
+  # Manual trigger: Actions → Publish → "Run workflow", with a TAG (v0.2.0 or later) picked
+  # from the ref dropdown. `checks` refuses a branch ref.
   workflow_dispatch: {}
 
+env:
+  JDK_URL: https://github.com/adoptium/temurin25-binaries/releases/download/jdk-25.0.5%2B8/OpenJDK25U-jdk_x64_linux_hotspot_25.0.5_8.tar.gz
+  JDK_SHA256: 68982529869257d0ee6b824ec5aa270ff8b118bb438670da0b97ebdab178d7fb
+  KOTLINC_URL: https://github.com/JetBrains/kotlin/releases/download/v2.2.0/kotlin-compiler-2.2.0.zip
+  KOTLINC_SHA256: 1adb6f1a5845ba0aa5a59e412e44c8e405236b957de1a9683619f1dca3b16932
+
 jobs:
-  publish:
-    name: Test and Publish to Maven Central
+  checks:
+    name: Checks (tests + compatibility gate)
     runs-on: ubuntu-latest
     permissions:
-      contents: write
-
+      contents: read
     steps:
-      # --- Checkout (run:, not actions/checkout) -------------------------------
-      - name: Clone repository at tag
+      - name: Refuse a non-tag ref
         run: |
-          git clone --depth=1 --branch "${GITHUB_REF_NAME}" \
-            "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" .
+          case "${GITHUB_REF}" in refs/tags/v*) ;; *) echo "❌ not a v* tag: ${GITHUB_REF}"; exit 1 ;; esac
+
+      - name: Clone the tag (no token)
+        run: |
+          set -euo pipefail
+          git clone --depth=1 --branch "${GITHUB_REF_NAME}" "https://github.com/${GITHUB_REPOSITORY}.git" .
+          test "$(git rev-parse HEAD)" = "${GITHUB_SHA}" || { echo "❌ the tag moved since the run started"; exit 1; }
           # The compatibility gate compares against the previous tag: fetch every tag (shallow).
           git fetch --depth=1 origin 'refs/tags/*:refs/tags/*'
 
-      # --- JDK install (run:, not actions/setup-java) --------------------------
-      # The build targets JVM 24 with a JDK 25 toolchain (requires JDK 24+).
-      # ubuntu-latest preinstalls several Temurin JDKs under /usr/lib/jvm; pick a
-      # 24+ one if present, otherwise download Temurin 25 via `run:`.
-      - name: Set up JDK 24+ (Temurin)
+      - name: Install JDK 25.0.5+8 (Temurin, pinned)
         run: |
           set -euo pipefail
-          # Prefer an already-installed Temurin 24/25 to avoid a network download.
-          found=""
-          for d in /usr/lib/jvm/temurin-25* /usr/lib/jvm/temurin-24* \
-                   /usr/lib/jvm/*-25-* /usr/lib/jvm/*-24-*; do
-            if [ -x "$d/bin/javac" ]; then found="$d"; break; fi
-          done
-          if [ -z "$found" ]; then
-            echo "No preinstalled JDK 24+ found — downloading Temurin 25."
-            url="https://api.adoptium.net/v3/binary/latest/25/ga/linux/x64/jdk/hotspot/normal/eclipse"
-            mkdir -p "$HOME/jdk"
-            curl -fsSL "$url" -o /tmp/jdk.tar.gz
-            tar -xzf /tmp/jdk.tar.gz -C "$HOME/jdk" --strip-components=1
-            found="$HOME/jdk"
-          fi
-          echo "Using JAVA_HOME=$found"
-          echo "JAVA_HOME=$found"      >> "$GITHUB_ENV"
-          echo "$found/bin"            >> "$GITHUB_PATH"
+          curl -fsSL "${JDK_URL}" -o /tmp/jdk.tar.gz
+          echo "${JDK_SHA256}  /tmp/jdk.tar.gz" | sha256sum -c -
+          mkdir -p "$HOME/jdk" && tar -xzf /tmp/jdk.tar.gz -C "$HOME/jdk" --strip-components=1
+          echo "JAVA_HOME=$HOME/jdk" >> "$GITHUB_ENV"
+          echo "$HOME/jdk/bin"       >> "$GITHUB_PATH"
 
-      # --- Kotlin CLI for scripts/compat.main.kts (run:, no setup action) ------
-      - name: Set up the kotlin command
+      - name: Install the Kotlin 2.2.0 compiler (pinned; for scripts/compat.main.kts)
         run: |
           set -euo pipefail
-          if ! command -v kotlin >/dev/null 2>&1; then
-            echo "kotlin not preinstalled — downloading the Kotlin 2.2.0 compiler."
-            curl -fsSL "https://github.com/JetBrains/kotlin/releases/download/v2.2.0/kotlin-compiler-2.2.0.zip" -o /tmp/kotlinc.zip
-            unzip -q /tmp/kotlinc.zip -d "$HOME"
-            echo "$HOME/kotlinc/bin" >> "$GITHUB_PATH"
-          fi
+          curl -fsSL "${KOTLINC_URL}" -o /tmp/kotlinc.zip
+          echo "${KOTLINC_SHA256}  /tmp/kotlinc.zip" | sha256sum -c -
+          unzip -q /tmp/kotlinc.zip -d "$HOME"
+          echo "$HOME/kotlinc/bin" >> "$GITHUB_PATH"
 
       - name: Show toolchain
         run: |
           java -version
           kotlin -version
-          ./gradlew --version
+          chmod +x gradlew && ./gradlew --version
 
-      # --- Test gate (check = tests + the api/ snapshot check) -------------------
+      # check = tests + the api/ snapshot check
       - name: Check
-        run: |
-          chmod +x gradlew
-          ./gradlew --no-daemon check
+        run: ./gradlew --no-daemon check
 
-      # --- Compatibility gate (cmem/compat-gate.md) ------------------------------
-      # Self-test of the gate's logic, then this tag against the previous one:
-      # version agreement, the SPEC/API floor, the Breaking Changes row, and the
-      # previous tag's tests against this library. Blocks the publish on failure.
+      # Self-test of the gate's logic, then this tag against the previous one: version
+      # agreement, the SPEC/API floor, the Breaking Changes row, and the previous tag's
+      # tests against this library (cmem/compat-gate.md).
       - name: Compatibility gate
         run: |
           kotlin scripts/compat.main.kts selftest
           kotlin scripts/compat.main.kts release
 
-      # --- Publish (signed) to Maven Central -----------------------------------
-      - name: Publish to Maven Central
+  publish:
+    name: Publish to Maven Central
+    needs: checks
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Clone the tag (no token) and require the tested commit
+        run: |
+          set -euo pipefail
+          git clone --depth=1 --branch "${GITHUB_REF_NAME}" "https://github.com/${GITHUB_REPOSITORY}.git" .
+          test "$(git rev-parse HEAD)" = "${GITHUB_SHA}" || { echo "❌ the tag no longer points at the commit checks passed"; exit 1; }
+
+      - name: Install JDK 25.0.5+8 (Temurin, pinned)
+        run: |
+          set -euo pipefail
+          curl -fsSL "${JDK_URL}" -o /tmp/jdk.tar.gz
+          echo "${JDK_SHA256}  /tmp/jdk.tar.gz" | sha256sum -c -
+          mkdir -p "$HOME/jdk" && tar -xzf /tmp/jdk.tar.gz -C "$HOME/jdk" --strip-components=1
+          echo "JAVA_HOME=$HOME/jdk" >> "$GITHUB_ENV"
+          echo "$HOME/jdk/bin"       >> "$GITHUB_PATH"
+
+      # The only step that sees the secrets. Tests already ran in `checks`; skipping them
+      # here keeps the test suite (and its dependencies) away from the signing key.
+      - name: Publish (signed) to Maven Central
         env:
           ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
           ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
           ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.GPG_PRIVATE_KEY }}
           ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.GPG_PASSPHRASE }}
         run: |
-          ./gradlew --no-daemon publishAllPublicationsToMavenCentralRepository
+          chmod +x gradlew
+          ./gradlew --no-daemon -x test publishAllPublicationsToMavenCentralRepository
 
-      # --- Release bookkeeping (run:, gh is preinstalled on the runner) --------
-      # Only meaningful for a tag ref (push of v*, or a manual run with a tag
-      # selected). A branch-dispatch publishes the artifact but skips these.
-      - name: Create release branch
-        if: startsWith(github.ref, 'refs/tags/')
+  release:
+    name: Release branch + GitHub Release
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Require the tag at the published commit
         run: |
-          git config user.name  "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git checkout -b "release/${GITHUB_REF_NAME}"
-          git push origin "release/${GITHUB_REF_NAME}"
+          set -euo pipefail
+          at="$(git ls-remote "https://github.com/${GITHUB_REPOSITORY}.git" "refs/tags/${GITHUB_REF_NAME}" | cut -f1)"
+          test "${at}" = "${GITHUB_SHA}" || { echo "❌ tag ${GITHUB_REF_NAME} is at '${at}', not ${GITHUB_SHA}"; exit 1; }
+
+      - name: Create release/<tag> branch
+        run: |
+          gh api "repos/${GITHUB_REPOSITORY}/git/refs" \
+            -f ref="refs/heads/release/${GITHUB_REF_NAME}" -f sha="${GITHUB_SHA}"
 
       - name: Create GitHub Release
-        if: startsWith(github.ref, 'refs/tags/')
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "${GITHUB_REF_NAME}" \
-            --title "${GITHUB_REF_NAME}" \
-            --target "release/${GITHUB_REF_NAME}" \
-            --generate-notes
+          gh release create "${GITHUB_REF_NAME}" --repo "${GITHUB_REPOSITORY}" \
+            --title "${GITHUB_REF_NAME}" --target "release/${GITHUB_REF_NAME}" --generate-notes

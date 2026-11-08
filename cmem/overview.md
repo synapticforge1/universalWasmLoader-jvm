@@ -212,10 +212,22 @@ refusals added 22, § SPEC 4.0.0).
 - **Bump through the gate:** `./gradlew bump [-Pkind=minor|major]` → `kotlin scripts/compat.main.kts
   bump <kind>`; it refuses a bump below the floor ([compat-gate.md](compat-gate.md)).
 - **Release (owner action):** commit the bump, `./gradlew release` (tags `v<version>`, force-pushes the
-  tag) → `publish.yml`: clone the tag + fetch tags → JDK 24+ → `kotlin` → `./gradlew check` →
-  compat `selftest` + `release` → `publishAllPublicationsToMavenCentralRepository` (vanniktech
-  `com.vanniktech.maven.publish` **0.37.0**, Central Portal, GPG in-memory signing) →
-  `release/v<version>` branch → `gh release create`.
+  tag) → `publish.yml`, **three jobs since 2026-11-08** (workspace C30; 🔒 owner: "yes use the
+  C30 split workflow"):
+  `checks` {contents: read}: tokenless clone of the tag, required at `github.sha` → pinned JDK
+  25.0.5+8 + Kotlin 2.2.0 (version + sha256) → `./gradlew check` → compat `selftest` + `release`.
+  `publish` {contents: read}: fresh runner, tokenless clone, refuses unless the tag is still
+  `github.sha` → pinned JDK → `./gradlew -x test publishAllPublicationsToMavenCentralRepository`
+  (vanniktech `com.vanniktech.maven.publish` **0.37.0**, Central Portal, GPG in-memory signing).
+  The four secrets live in that one step's env.
+  `release` {contents: write}: no checkout, no build; `git ls-remote` asserts the tag →
+  `gh api` creates `release/v<version>` → `gh release create`.
+  Before the split (through 0.3.0) ONE `contents: write` job ran everything, with the token in the
+  clone's remote URL and unpinned downloads (the JDK was "latest 25"). `gradle-wrapper.properties`
+  now pins the Gradle distribution (`distributionSha256Sum`, 9.5.1, checked against a download
+  2026-11-08). `--dry-run` of the publish command: no `:test`; `signMavenPublication` and the upload
+  are in the graph. **First run: the 0.4.0 release** (no `workflow_dispatch` test was possible
+  without a tag).
   `workflow_dispatch` exists, but GitHub reads it from the workflow file IN the chosen ref: no tag up
   to `v0.1.2` has it (added in `9f2c6d5`, one commit after the `v0.1.2` tag — measured 2026-10-26,
   "Workflow does not exist or does not have a workflow_dispatch trigger in this tag"). It works for
