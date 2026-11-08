@@ -7,6 +7,11 @@ package com.jrmarcum.universalwasmloader
  * The loader decodes WASM values to JVM types (Int, Long, Float, Double, Boolean, String)
  * before calling your handler, and encodes the return value back.
  *
+ * SPEC 4.0.0: every WIT `import` needs a handler (a missing one fails the load, naming all of
+ * them), and a handler's value must be its import's WIT result kind — `Int` for `s32`, `Long`
+ * for `s64`, `Double` / `Float` for `f64` / `f32`, `Boolean` for `bool` — never coerced; a
+ * Future / Deferred is refused. A void import ignores the value.
+ *
  * Usage:
  *   val cbs = Callbacks()
  *       .on("envMul") { a, b -> (a as Double) * (b as Double) }
@@ -55,6 +60,10 @@ class Callbacks {
         return this
     }
 
+    internal fun has(camelName: String): Boolean = camelName in handlers
+
+    // The loader checks at load time that every WIT import has a handler (SPEC 4.0.0 §4), so a
+    // missing one here is a loader bug, not a silent null.
     internal fun invoke(camelName: String, args: List<Any?>): Any? =
-        handlers[camelName]?.invoke(args)
+        (handlers[camelName] ?: error("no host callback '$camelName'"))(args)
 }

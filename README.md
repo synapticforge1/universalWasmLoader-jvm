@@ -80,20 +80,35 @@ val cbs = Callbacks()
     .on("envMul") { a, b -> (a as Double) * (b as Double) }
     .on("envAdd") { a, b -> (a as Int) + (b as Int) }
 
-val m = wasmLoad("math.wasm", cbs)
+val m = wasmLoad("imports.wasm", cbs)
 println(m.call("scale", 3.0, 4.0))    // 12.0
 ```
+
+Every WIT `import` needs its callback: a missing one fails the load with an
+`IllegalArgumentException` naming all the missing ones. A callback must return its import's WIT
+result kind (`Int` for `s32`, `Long` for `s64`, `Double` / `Float` for `f64` / `f32`, `Boolean`
+for `bool`). Any other value, a `null`, or a `Future` / `Deferred` throws an
+`IllegalStateException` that names the callback, the import, the type and the value. The exception
+reaches the caller of the export. A void import ignores the value. An import with a `string`
+result is not supported and fails the load.
 
 ### Async loading (URLs)
 
 Use `wasmImport` inside a coroutine to load from HTTP/HTTPS or when already in a suspend context.
 
 ```kotlin
+import java.time.Duration
 import kotlinx.coroutines.runBlocking
 
 val m = runBlocking { wasmImport("https://example.com/math.wasm") }
 println(m.call("add", 3, 4))
+
+// A different time limit per fetch (default 30 s; null = no limit):
+val m2 = runBlocking { wasmImport("https://example.com/math.wasm", Callbacks(), LoadOptions(Duration.ofSeconds(5))) }
 ```
+
+To cancel a load, cancel the coroutine that runs `wasmImport`. The request in flight is cancelled
+with it.
 
 ### Singleton — load once, reuse forever
 
@@ -124,15 +139,29 @@ println(result)   // 7
 
 ## How It Works
 
-1. Resolves the `.wasm` file path (file system or classpath)
-2. Auto-detects the companion `.wit` file by replacing `.wasm` → `.wit`
-3. Applies the Canonical ABI (wasmtime) — bool and string types are handled automatically
-4. Returns an ABI-translated `ModuleHandle` keyed by camelCase WIT export names
+1. Finds the companion `.wit` by replacing the path's `.wasm` suffix with `.wit` (a URL's query
+   and fragment are dropped; a path that does not end in `.wasm` has no `.wit`), and reads it
+   **first** (file system or classpath, or over http(s))
+2. Parses it strictly and checks that every WIT import has a host callback
+3. Reads the `.wasm`, instantiates it, and checks that every WIT export exists
+4. Applies the Canonical ABI (wasmtime) — bool and string types are handled automatically
+5. Returns an ABI-translated `ModuleHandle` keyed by camelCase WIT export names
 
-If no `.wit` file is found, the module's raw exports are used, typed by the export's own wasm
-signature (as JS raw `WebAssembly.Exports`): numbers and booleans are converted to each parameter's
-type (`2` → `2.0` for an f64), results come back as `Int` (i32), `Long` (i64), `Float` (f32) or
-`Double` (f64). Strings and host callbacks need the `.wit`; without it they throw a clear error.
+**Absent versus failed (SPEC 4.0.0 §2).** Only an **absent** `.wit` means raw exports: no such file
+or classpath resource, or an http(s) answer of 404 or 410. Any other outcome fails the load before
+the `.wasm` is read: another HTTP status, a network error, the time limit, an unreadable file, or a
+`.wit` that does not parse. Parse failures include a type outside `s32 s64 f32 f64 bool string`
+(`u32` is not read as `s32`), a parameter without `name: type`, a duplicate name, or text outside
+the one `world`.
+
+**Typed calls check their arguments (SPEC 4.0.0 §4).** A wrong count, or a value of another kind,
+throws `IllegalArgumentException` naming the export and the parameter. Values are never coerced:
+`add(2.7, 1)`, `add(1, 2147483648L)`, `multiply(2, 4)` and `greet(42)` are refused.
+
+If no `.wit` exists, the module's raw exports are used, typed by the export's own wasm signature
+(as JS raw `WebAssembly.Exports`). Numbers and booleans are converted to each parameter's type
+(`2` → `2.0` for an f64). Results come back as `Int` (i32), `Long` (i64), `Float` (f32) or `Double`
+(f64). Strings and host callbacks need the `.wit`; without it they throw a clear error.
 
 ## API Reference
 
@@ -149,11 +178,18 @@ Returns `ModuleHandle`.
 
 Same as above but wraps the handle in a JDK dynamic proxy implementing interface `T`.
 
-### `wasmImport(source, callbacks?)`
+### `wasmImport(source, callbacks?)` / `wasmImport(source, callbacks, options)`
 
-Suspend function. Same as `wasmLoad` but also accepts `http://`/`https://` URLs. An HTTP error or a
-timeout on the `.wasm` throws an `IOException` naming the URL (10 s to connect, 30 s until the server
-starts answering); a `.wit` that cannot be fetched falls back to raw exports (SPEC §63).
+Suspend function. Same as `wasmLoad` but also accepts `http://`/`https://` URLs. Each file is
+requested once, the `.wit` first. An HTTP error on either file throws an `IOException` naming the
+status and URL; on the `.wit`, 404 and 410 mean "absent" (raw exports) instead.
+
+`LoadOptions(timeout)` limits each fetch from the request to the last byte of the body (SPEC 4.0.0
+§11). The default is 30 s; `null` means no limit; zero or negative is refused. Connecting is also
+limited to 10 s, or to the timeout if that is shorter. A fetch that runs past the limit throws
+`java.net.http.HttpTimeoutException` (an `IOException`) naming the URL and the limit. Local files
+are read without a limit. `createSingleton` and `InstancePool` load local files only, so they take
+no options.
 
 ### `ModuleHandle`
 
@@ -167,10 +203,10 @@ starts answering); a `.wit` that cannot be fetched falls back to raw exports (SP
 
 | WIT type | JVM → WASM | WASM → JVM |
 | --- | --- | --- |
-| `s32` | `Int` → i32 | i32 → `Int` |
-| `s64` | `Long` → i64 | i64 → `Long` |
-| `f32` | `Float` → f32 | f32 → `Float` |
-| `f64` | `Double` → f64 | f64 → `Double` |
+| `s32` | `Int` (or `Short` / `Byte`) → i32 | i32 → `Int` |
+| `s64` | `Long` (or `Int` / `Short` / `Byte`) → i64 | i64 → `Long` |
+| `f32` | `Float` or `Double` → f32 | f32 → `Float` |
+| `f64` | `Double` or `Float` → f64 | f64 → `Double` |
 | `bool` | `Boolean` → `1`/`0` | `!= 0` → `Boolean` |
 | `string` | UTF-8 encode → `cabi_realloc` → `(ptr, len)` | i32 return ptr → read `[ptr, len]` → UTF-8 decode → `cabi_post_<name>` (SPEC 3.0.0) |
 
@@ -188,6 +224,7 @@ library).
 
 | Version | What changed | How to migrate |
 | --- | --- | --- |
+| _next release_ | **SPEC 4.0.0** (behaviour; the API only gains `LoadOptions` and a `wasmImport` overload). (1) Only an absent `.wit` means raw exports. A `.wit` that answers anything but 200 / 404 / 410, times out or cannot be read now fails the load (it used to fall back to raw exports), and the `.wit` is read before the `.wasm`. (2) The `.wit` is parsed strictly: an unsupported type (`u32` was read as `s32`), a malformed parameter (`a: s32 b: s32` dropped `b`), a duplicate, or a WIT export the module lacks fails the load. (3) Every WIT import needs a callback, checked at load, and an import with a `string` result is refused. A callback's value must be its WIT result kind (`null` was `0`, `2.9` was `2`), and a `Future` is refused. (4) Typed calls check the count and kinds, with no coercion (`add(2.7, 1)` was `3`, `add(1)` was `1`, `greet(42)` was `"Hello, 42!"`). (5) `wasmImport`'s limit is 30 s per fetch, request to last byte (it was 30 s until the response started, so a stalled body waited forever). | Register a callback for every WIT import, returning the exact kind. Pass `Int` to `s32` and `Double` to `f64` (`2.0`, not `2`). Fix any `.wit` the loader now refuses. Serve the `.wit` with 200 or 404. Pass `LoadOptions(...)` for another limit. |
 | 0.3.0 | Raw mode (no `.wit`) follows each export's wasm signature: an i32 result is an `Int` (was a `Long`), f32 / f64 results are `Float` / `Double` (were their raw bit patterns), arguments convert to the parameter types, and an argument that cannot convert (a `String`, `null`), a wrong argument count, or an unknown export throws `IllegalArgumentException` (were silently `0`, an `ArrayIndexOutOfBoundsException`, a `NullPointerException`). | Drop casts like `as Long` on i32 results (`(r as Number).toInt()` works before and after); remove any decoding of float bit patterns. |
 | 0.3.0 | `wasmImport` over HTTP has fixed timeouts: 10 s to connect, 30 s until the server starts answering. A `.wasm` request that exceeds them throws `java.net.http.HttpTimeoutException` (it used to wait forever); a `.wit` request that exceeds them falls back to raw exports (SPEC §63). | Serve modules from a server that answers within 30 s; catch `IOException` (which `HttpTimeoutException` extends) where a load may fail. |
 | 0.2.0 | A module's exported `_initialize` (SPEC §10.1) is now called automatically, once, right after instantiation (behaviour, not API). | Remove any manual call to `_initialize`; calling it again initializes the module twice. |

@@ -8,9 +8,12 @@ import com.dylibso.chicory.wasm.Parser
 import com.dylibso.chicory.wasm.types.ExternalType
 import com.dylibso.chicory.wasm.types.ValueType
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.future.await
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import java.io.File
 import java.net.URI
 import java.net.http.HttpClient
@@ -82,16 +85,33 @@ class ModuleHandle internal constructor(
         }
     }
 
+    // The WIT exports by camelCase name: one map lookup per call (3.0.0 searched the list).
+    private val witExports: Map<String, WitFunction> = witDoc?.exports?.associateBy { it.camelName } ?: emptyMap()
+
     private fun callWithAbi(name: String, args: Array<out Any?>): Any? {
-        val fn = witDoc!!.exports.find { it.camelName == name }
+        val fn = witExports[name]
             ?: throw IllegalArgumentException(
-                "Export '$name' not found in WIT. Available: ${witDoc.exports.map { it.camelName }}"
+                "Export '$name' not found in WIT. Available: ${witDoc!!.exports.map { it.camelName }}"
             )
+
+        // SPEC 4.0.0 §4 — check the count and every argument's kind before calling WASM, never
+        // coerce (3.0.0 made add(2.7, 1) = 3, add(1) = 1 and greet(42) = "Hello, 42!").
+        if (args.size != fn.params.size) {
+            throw IllegalArgumentException(
+                "'$name' takes ${fn.params.size} argument${if (fn.params.size == 1) "" else "s"} " +
+                    "(${fn.params.joinToString(", ") { "${it.name}: ${it.type}" }}), got ${args.size}"
+            )
+        }
+        for ((i, param) in fn.params.withIndex()) {
+            Abi.mismatch(param.type, args[i])?.let {
+                throw IllegalArgumentException("'$name' parameter ${param.name} is ${param.type}, got $it")
+            }
+        }
 
         val wasmFn   = instance.export(fn.camelName)
         val wasmArgs = mutableListOf<Long>()
         for ((i, param) in fn.params.withIndex()) {
-            wasmArgs.addAll(Abi.encodeArg(instance, param.type, args.getOrNull(i), stringAbi))
+            wasmArgs.addAll(Abi.encodeArg(instance, param.type, args[i], stringAbi))
         }
 
         return if (fn.result == "string") {
@@ -159,9 +179,12 @@ class ModuleHandle internal constructor(
  */
 fun wasmLoad(path: String, callbacks: Callbacks = Callbacks()): ModuleHandle {
     val (cleanPath, version) = parseVersionSuffix(path)
+    // SPEC 4.0.0 §2 — the .wit is read (and checked) before the .wasm. Only an absent .wit
+    // means raw exports; an unreadable or malformed one fails the load.
+    val witDoc = witPathFor(cleanPath)?.let { witPath ->
+        readLocalWit(witPath)?.let { parseWitAt(witPath, it).also { doc -> checkImports(doc, callbacks, witPath) } }
+    }
     val wasmBytes = loadBytes(cleanPath)
-    val witSource = tryLoadText(cleanPath.replace(".wasm", ".wit"))
-    val witDoc    = witSource?.let { WitParser.parse(it) }
     return instantiateFromBytes(wasmBytes, witDoc, callbacks, cleanPath, version)
 }
 
@@ -226,66 +249,72 @@ suspend fun wasmImport(source: String, callbacks: Callbacks = Callbacks()): Modu
  * [wasmImport] with explicit [options] (SPEC 4.0.0 §11: the time limit per fetch).
  * Cancel the calling coroutine to cancel the load.
  */
-// Surface only in this commit (the API re-baseline, alone); the SPEC 4.0.0 behaviour follows.
 suspend fun wasmImport(source: String, callbacks: Callbacks, options: LoadOptions): ModuleHandle =
     withContext(Dispatchers.IO) {
+        ensureActive() // an already-cancelled load reads and fetches nothing
         if (source.startsWith("http://") || source.startsWith("https://")) {
-            loadFromUrl(source, callbacks, responseTimeout = options.timeout ?: HTTP_RESPONSE_TIMEOUT)
+            loadFromUrl(source, callbacks, options)
         } else {
             wasmLoad(source, callbacks)
         }
     }
 
-// wasmImport's network timeouts (owner, 2026-10-26): fixed, no configuration. Without
-// them a server that accepts the connection and never answers hangs wasmImport forever.
+// The connect phase has its own limit (owner, 2026-10-26: 10 s); the whole fetch, connect
+// included, is held to LoadOptions.timeout (SPEC 4.0.0 §11, which allows the split).
 internal val HTTP_CONNECT_TIMEOUT: Duration = Duration.ofSeconds(10)
-internal val HTTP_RESPONSE_TIMEOUT: Duration = Duration.ofSeconds(30)
 
 internal suspend fun loadFromUrl(
     source: String,
     callbacks: Callbacks,
-    connectTimeout: Duration = HTTP_CONNECT_TIMEOUT,
-    responseTimeout: Duration = HTTP_RESPONSE_TIMEOUT,
+    options: LoadOptions = LoadOptions(),
 ): ModuleHandle {
     val (cleanUrl, version) = parseVersionSuffix(source)
-    val witUrl = cleanUrl.replace(".wasm", ".wit")
-    val httpClient = HttpClient.newBuilder().connectTimeout(connectTimeout).build()
+    val limit = options.timeout
+    val connect = if (limit != null && limit < HTTP_CONNECT_TIMEOUT) limit else HTTP_CONNECT_TIMEOUT
+    val httpClient = HttpClient.newBuilder().connectTimeout(connect).build()
 
-    // An HTTP error on the .wasm is reported as one. Without this check a 404 / 500
-    // error page reached Chicory as module bytes and surfaced as a MalformedException.
-    // A timeout throws HttpTimeoutException (an IOException) naming the URL.
-    val wasmBytes = withContext(Dispatchers.IO) {
-        val resp = try {
-            httpClient.send(
-                HttpRequest.newBuilder().uri(URI.create(cleanUrl)).timeout(responseTimeout).build(),
-                HttpResponse.BodyHandlers.ofByteArray()
-            )
-        } catch (e: HttpTimeoutException) {
-            throw HttpTimeoutException("wasmImport: no response within $responseTimeout for $cleanUrl (${e.message})")
-        }
-        if (resp.statusCode() !in 200..299) {
-            throw java.io.IOException("wasmImport: HTTP ${resp.statusCode()} for $cleanUrl")
-        }
-        resp.body()
-    }
-
-    // SPEC §63: a .wit that cannot be fetched (non-2xx status, a network error or a
-    // timeout) falls back to raw exports. Only I/O failures are caught, so an interrupt
-    // or a coroutine cancellation is not swallowed.
-    val witSource = withContext(Dispatchers.IO) {
-        try {
-            val resp = httpClient.send(
-                HttpRequest.newBuilder().uri(URI.create(witUrl)).timeout(responseTimeout).build(),
-                HttpResponse.BodyHandlers.ofString()
-            )
-            if (resp.statusCode() in 200..299) resp.body() else null
-        } catch (_: java.io.IOException) {
-            null
+    // SPEC 4.0.0 §2 — the .wit first: 404 / 410 means absent (raw exports); every other
+    // outcome — a status, a network error, the time limit — fails the load before the .wasm
+    // is requested. 3.0.0 fell back to raw exports on all of them, silently.
+    val witUrl = witUrlFor(cleanUrl)
+    val witDoc = witUrl?.let { url ->
+        fetchBytes(httpClient, url, limit, absentOk = true)?.let { bytes ->
+            parseWitAt(url, decodeWit(url, bytes)).also { checkImports(it, callbacks, url) }
         }
     }
 
-    val witDoc = witSource?.let { WitParser.parse(it) }
+    // An HTTP error on the .wasm is reported as one (a 404 / 500 error page used to reach
+    // Chicory as module bytes and surface as a MalformedException).
+    val wasmBytes = fetchBytes(httpClient, cleanUrl, limit, absentOk = false)!!
     return instantiateFromBytes(wasmBytes, witDoc, callbacks, cleanUrl, version)
+}
+
+/**
+ * One request (never retried), held to [limit] from the request to the last byte. Returns
+ * null for a 404 / 410 when [absentOk]; any other non-2xx status throws `IOException` naming
+ * the status and URL. Coroutine cancellation cancels the request and propagates unchanged.
+ */
+private suspend fun fetchBytes(client: HttpClient, url: String, limit: Duration?, absentOk: Boolean): ByteArray? {
+    val request = HttpRequest.newBuilder().uri(URI.create(url)).build()
+    val send: suspend () -> HttpResponse<ByteArray> = {
+        try {
+            client.sendAsync(request, HttpResponse.BodyHandlers.ofByteArray()).await()
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: java.net.http.HttpConnectTimeoutException) {
+            throw HttpTimeoutException("wasmImport: could not connect within $HTTP_CONNECT_TIMEOUT to $url")
+        } catch (e: java.io.IOException) {
+            throw java.io.IOException("wasmImport: fetching $url failed: ${e.message ?: e::class.simpleName}", e)
+        }
+    }
+    val resp = if (limit == null) send() else {
+        withTimeoutOrNull(limit.toMillis()) { send() }
+            ?: throw HttpTimeoutException("wasmImport: $url did not complete within the time limit of ${limit.toMillis()} ms")
+    }
+    val status = resp.statusCode()
+    if (absentOk && (status == 404 || status == 410)) return null
+    if (status !in 200..299) throw java.io.IOException("wasmImport: HTTP $status for $url")
+    return resp.body()
 }
 
 // ---------------------------------------------------------------------------
@@ -373,16 +402,78 @@ internal fun loadBytes(path: String): ByteArray {
         .use { it.readBytes() }
 }
 
-internal fun tryLoadText(path: String): String? {
-    return try {
-        val file = File(path)
-        if (file.exists()) return file.readText()
+/** The companion `.wit` of a path ending in `.wasm` (only that suffix is replaced), else null. */
+internal fun witPathFor(path: String): String? =
+    if (path.endsWith(".wasm")) path.dropLast(".wasm".length) + ".wit" else null
+
+/** The companion `.wit` URL: the path's `.wasm` suffix replaced, query and fragment dropped. */
+internal fun witUrlFor(url: String): String? {
+    val uri = URI.create(url)
+    val path = uri.rawPath ?: return null
+    if (!path.endsWith(".wasm")) return null
+    return "${uri.scheme}://${uri.rawAuthority}${path.dropLast(".wasm".length)}.wit"
+}
+
+/**
+ * Read a local `.wit` (file system, then classpath). Null only when it is ABSENT (no such file
+ * and no such resource); a `.wit` that exists but cannot be read throws `IOException` naming it.
+ */
+internal fun readLocalWit(path: String): String? {
+    val file = File(path)
+    val bytes = if (file.exists()) {
+        try {
+            file.readBytes()
+        } catch (e: java.io.IOException) {
+            throw java.io.IOException("cannot read .wit '$path': ${e.message}", e)
+        }
+    } else {
         val resource = path.trimStart('/', '\\').let { "/$it" }
-        (ModuleHandle::class.java.getResourceAsStream(resource)
-            ?: ModuleHandle::class.java.getResourceAsStream(path))
-            ?.use { it.bufferedReader().readText() }
-    } catch (_: Exception) {
-        null
+        val stream = ModuleHandle::class.java.getResourceAsStream(resource)
+            ?: ModuleHandle::class.java.getResourceAsStream(path)
+            ?: return null
+        try {
+            stream.use { it.readBytes() }
+        } catch (e: java.io.IOException) {
+            throw java.io.IOException("cannot read .wit '$path': ${e.message}", e)
+        }
+    }
+    return decodeWit(path, bytes)
+}
+
+/** Strict UTF-8: a `.wit` that is not valid UTF-8 does not parse. */
+private fun decodeWit(where: String, bytes: ByteArray): String = try {
+    Charsets.UTF_8.newDecoder()
+        .onMalformedInput(java.nio.charset.CodingErrorAction.REPORT)
+        .onUnmappableCharacter(java.nio.charset.CodingErrorAction.REPORT)
+        .decode(ByteBuffer.wrap(bytes)).toString()
+} catch (e: java.nio.charset.CharacterCodingException) {
+    throw IllegalArgumentException("invalid .wit '$where': not valid UTF-8", e)
+}
+
+/** Parse strictly (SPEC 4.0.0 §2), naming the `.wit` in the error. */
+private fun parseWitAt(where: String, src: String): WitDocument = try {
+    WitParser.parse(src)
+} catch (e: WitSyntaxException) {
+    throw IllegalArgumentException("invalid .wit '$where': ${e.message}", e)
+}
+
+/**
+ * SPEC 4.0.0 §4, at load and before the `.wasm` is read: an import with a `string` result is
+ * not supported by this ABI profile, and every WIT import needs a host callback — all the
+ * missing ones are named at once (3.0.0 loaded and the import returned 0 when WASM called it).
+ */
+private fun checkImports(doc: WitDocument, callbacks: Callbacks, where: String) {
+    doc.imports.firstOrNull { it.result == "string" }?.let {
+        throw UnsupportedOperationException(
+            "'$where' imports ${it.name} with a string result, which this ABI profile does not support"
+        )
+    }
+    val missing = doc.imports.filter { !callbacks.has(it.camelName) }
+    if (missing.isNotEmpty()) {
+        throw IllegalArgumentException(
+            "missing host callback${if (missing.size == 1) "" else "s"} for the WIT imports of '$where': " +
+                missing.joinToString(", ") { "${it.camelName} (${it.name})" }
+        )
     }
 }
 
@@ -460,6 +551,18 @@ private fun instantiateFromBytes(
     }
 
     memRef.current = instance.memory()
+
+    // SPEC 4.0.0 §2 — a WIT export the module does not export fails the load, naming it
+    // (3.0.0 loaded, and the call failed later inside Chicory).
+    if (witDoc != null) {
+        val absent = witDoc.exports.filter { findExportByName(instance, it.camelName)?.exportType() != ExternalType.FUNCTION }
+        if (absent.isNotEmpty()) {
+            throw IllegalStateException(
+                "'$pathForError': its .wit exports ${absent.joinToString(", ") { "${it.name} (${it.camelName})" }}, " +
+                    "which the module does not export as a function; it exports: ${exportedFunctionNames(instance)}"
+            )
+        }
+    }
 
     // SPEC §10.1 — call the reactor initializer once, before any other export.
     // No-op for modules that don't export `_initialize`.

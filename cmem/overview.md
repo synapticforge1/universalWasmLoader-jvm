@@ -9,7 +9,8 @@ the old `CLAUDE.md` body it absorbed: `git show 0af04cb:CLAUDE.md`).
 The **JVM (Java/Kotlin) port** of the Universal WASM Loader. It loads a `.wasm` module, auto-detects
 the companion `.wit` file, applies the Canonical ABI, and returns a handle keyed by camelCase WIT
 export names — the JVM equivalent of the reference loader, universalWasmLoader-js, whose
-`SPEC.md` (v3.0.0) is the one spec text; this repo links it and keeps no copy (since 2026-10-26).
+`SPEC.md` (v4.0.0 since 2026-11-08, branch `spec-4.0.0`; v3.0.0 through 0.3.0) is the one spec
+text; this repo links it and keeps no copy (since 2026-10-26).
 
 - **Language:** Kotlin, consumable from any JVM language. **Requires Java 24+** (bytecode target 24,
   JDK 25 toolchain; the README's old "Java 17+" was wrong, fixed 2026-10-26).
@@ -36,7 +37,12 @@ export names — the JVM equivalent of the reference loader, universalWasmLoader
 
 1. `wasmLoad(path)` is synchronous — no coroutine for local file loading.
 2. Both `m.call("fn", args…)` and `wasmLoad<T>(path)` must work.
-3. No options objects, no ABI flags, no explicit WIT paths — zero configuration.
+3. No options objects, no ABI flags, no explicit WIT paths — zero configuration. **One exception,
+   from the SPEC itself:** SPEC 4.0.0 §1 / §11 (the owner's decision, 2026-11-07) requires an
+   `options` argument for the fetch time limit, so `wasmImport` has a 3-argument overload taking
+   `LoadOptions(timeout)` (2026-11-08). The 2-argument form and every other entry point stay
+   zero-configuration, and the defaults are the SPEC's. 🗓️ Owner to confirm the exception
+   ([open-work.md](open-work.md)).
 4. Version pinning `@N` follows the C SONAME convention, not Maven versioning.
 5. `createSingleton` and `InstancePool` share the same minimal signature.
 6. All project memory lives in `cmem/` (committed, portable); nothing in machine-local stores
@@ -49,8 +55,8 @@ src/main/kotlin/com/jrmarcum/universalwasmloader/
 ├── UniversalWasmLoader.kt   # public API, ModuleHandle, string-return decode, load/instantiate helpers
 ├── Abi.kt                   # encode/decode, MemRef, StringAbi, buildEnvFunctions (env HostFunctions)
 ├── Callbacks.kt             # host import callbacks, .on(camelName) { … } with 0–3 args
-└── WitParser.kt             # regex WIT parser, no dependencies (internal)
-src/test/kotlin/.../LoaderTest.kt    # 40 tests: SPEC §8, two §10, seven wasmImport-over-HTTP, six raw mode, one fixture stamp
+└── WitParser.kt             # strict WIT parser (SPEC 4.0.0 §2, a port of -js's wit-parser.js; internal)
+src/test/kotlin/.../LoaderTest.kt    # 62 tests: SPEC §8 incl. Refusals, two §10, wasmImport over HTTP, raw mode, fixture stamp
 src/test/resources/tests/            # the stamped reference fixtures + fixtures.json (see Tests)
 api/universal-wasm-loader-jvm.api    # the public API snapshot (compat gate Rule 1)
 api/v0.1.2.api                       # the released surface of v0.1.2, generated from the tag
@@ -65,22 +71,21 @@ scripts/compat.main.kts              # compatibility gate + version bump (replac
 - `wasmLoad<T>(path, callbacks): T` — reified inline; a `java.lang.reflect.Proxy` over interface `T`,
   each method dispatching to `call(method.name, …)`. ⚠️ Being inline-reified it is NOT in the ABI
   snapshot; the previous-tag tests guard it ([compat-gate.md](compat-gate.md)).
-- `suspend wasmImport(source, callbacks): ModuleHandle` — also `http(s)://` via `HttpClient`. The
-  `.wasm` fetch throws `IOException("wasmImport: HTTP <status> for <url>")` on any non-2xx (fixed
-  2026-10-26; before, the error page reached Chicory and surfaced as `MalformedException` — measured
-  by the new tests against the old loader, as loader-js `64551fa`). The `.wit` fetch keeps SPEC §63:
-  a non-2xx or an `IOException` falls back to raw exports (only `IOException` is caught, so an
-  interrupt or cancellation is not swallowed). Tests on a local JDK `HttpServer`: 404 / 500 on the
-  `.wasm`, `.wasm` + `.wit` over HTTP, and the `.wit` 404 / 500 fallback.
-  🔒 **Timeouts (owner, 2026-10-26: "30s sounds good"; shipped in 0.3.0):** fixed
-  `HTTP_CONNECT_TIMEOUT` 10 s + `HTTP_RESPONSE_TIMEOUT` 30 s (until the response starts — the JDK
-  request timeout; a server that sends headers and then stalls the BODY is not covered, not tested),
-  no configuration (design principle 3). Before: none at all, so a server that accepted and never
-  answered hung `wasmImport` forever. `.wasm` timeout → `HttpTimeoutException("wasmImport: no response
-  within PT30S for <url> …")`; `.wit` timeout → raw fallback. `loadFromUrl` is `internal` with the two
-  durations as parameters so tests use 300 ms; the two stall tests carry `@Timeout(10)` so a lost
-  timeout fails the suite instead of hanging it — inverted: without the `.wasm` timeout that test
-  hit the 10 s cap, the `.wit` test (own timeout intact) passed.
+- `suspend wasmImport(source, callbacks)` and `suspend wasmImport(source, callbacks, options:
+  LoadOptions)` — also `http(s)://` via `HttpClient.sendAsync(...).await()`. SPEC 4.0.0 (see
+  § SPEC 4.0.0 below): the `.wit` is fetched FIRST; 404 / 410 = absent (raw), any other non-2xx →
+  `IOException("wasmImport: HTTP <status> for <url>")`, before the `.wasm` is requested. The `.wasm`
+  fetch throws the same on any non-2xx (since 2026-10-26; before, the error page reached Chicory as
+  a `MalformedException`). One request per file, never retried.
+  **Time limit:** `LoadOptions(timeout = 30 s)` per fetch, request to LAST BYTE, by
+  `withTimeoutOrNull` around the whole exchange (`null` = no limit; zero / negative refused) →
+  `HttpTimeoutException("wasmImport: <url> did not complete within the time limit of <n> ms")`.
+  Connecting is limited to `HTTP_CONNECT_TIMEOUT` 10 s, or to the timeout if shorter (the 🔒
+  owner's 10 s / 30 s of 2026-10-26, "30s sounds good"; SPEC §11.1 names this split as allowed).
+  The 0.3.0 limit ended when the response STARTED, so a stalled body waited forever. That gap is
+  closed now and tested. **Cancellation:** the coroutine's own; `await()` cancels the JDK future,
+  which aborts the exchange. An already-cancelled coroutine fetches nothing (`ensureActive()`, and
+  `withContext` checks too). Stall tests carry `@Timeout(10)` so a lost limit fails the suite.
 - `createSingleton(path, callbacks): () -> ModuleHandle` — Kotlin `lazy {}`.
 - `InstancePool(path, callbacks, size = 4)` — `size` independent instances; `Semaphore` +
   `ArrayBlockingQueue`; `acquire()`, `release(h)`, `run(fn)` (releases even on throw).
@@ -130,6 +135,51 @@ to 0.2.1 has it. Now, as JS raw `WebAssembly.Exports`:
   export lookup on every call). The WIT path is untouched; its readings wandered 77–124 ns across
   runs of the SAME old code, so single-run differences there are noise.
 
+## SPEC 4.0.0 (workspace C29; branch `spec-4.0.0`, 2026-11-08)
+
+The owner's decisions of 2026-11-07 (loader-js 2.0.0, `-js/SPEC.md` § 2, § 4, § 8 Refusals, § 11).
+It is a break: each rule refuses something 3.0.0 accepted. **Measured on 0.3.0 first** (by reading
+the code and the 0.3.0 tests): a `.wit` 500 / timeout / IOException → raw, silently (tested as
+intended behaviour). The regex parser read any unknown type as `s32`, dropped a parameter written
+without a comma (`mapNotNull`), and gave an empty world for garbage. A missing callback → `null` →
+`0`. A callback's value was coerced (`as? Number ?: 0`). Typed calls coerced too (`toInt()` on 2.7,
+a missing argument → `0`, `toString()` on a string param). `cleanPath.replace(".wasm", ".wit")`
+replaced EVERY occurrence and kept a URL's query. Now:
+
+1. **§2 absent vs failed:** `.wit` read BEFORE the `.wasm`. Absent = no file and no classpath
+   resource, or HTTP 404 / 410, or a path not ending in `.wasm` (only the suffix is replaced; a
+   URL's query and fragment are dropped). Otherwise: unreadable → `IOException("cannot read .wit
+   …")`; not UTF-8 or malformed → `IllegalArgumentException("invalid .wit '<path>': <fault>")`.
+2. **§2 strict parsing:** `WitParser` is a port of `wit-parser.js` 2.0.0, same grammar and messages
+   (`WitSyntaxException`, internal). `packageName` is `""` when absent (was `"unknown"`). Param names
+   stay kebab (the JVM API never exposed them as camelCase). A WIT export the module lacks fails the
+   load after instantiation (`IllegalStateException`, naming it).
+3. **§4 host callbacks:** checked at load, before the `.wasm` is read. A `string`-result import →
+   `UnsupportedOperationException`. All missing callbacks are named at once → `IllegalArgumentException`.
+   The callback's value is checked by kind (`Abi.mismatch`) → `HostCallbackException` (internal,
+   an `IllegalStateException`) naming the callback, import, result type and value. A `Future` /
+   `CompletionStage` / coroutine `Job` (incl. `Deferred`) is refused for every import. A void
+   import ignores the value. Chicory passes both this exception and a callback's own exception out
+   of `apply` unchanged (measured: the tests catch the exact classes).
+4. **§4 typed calls:** count and kind checked first → `IllegalArgumentException("'add' parameter b
+   is s32, got Long 2147483648")`. Domains: `s32` = `Int` / `Short` / `Byte` (a `Long` is the s64
+   kind, refused even in range); `s64` = those or `Long`; `f32` / `f64` = `Float` or `Double` (an
+   `Int` refused); `bool` = `Boolean`; `string` = `String`. There are no kind-specific accessors, so
+   the result-kind half is n/a. The WIT export is now one map lookup (the backlog item of 0.3.0).
+5. **§11:** above, under Public API. `createSingleton` / `InstancePool` are file-only, so they take
+   no options (n/a, as -c / -dotnet / -go).
+
+**The check, § 8 Refusals:** every row is a test (http rows on the JDK `HttpServer`, counting
+requests). JVM stand-ins for the JS values: `undefined` / `null` → `null`; `2 ** 31` and `17n` →
+`Long`; an `async` callback → a `CompletableFuture`. Tests 40 → 62, all green. **Inverted:** 8
+mutants in one run (`.wit` 500 → absent; limit ignored; missing-callback check off; argument check
+off; return check off; unknown type → `s32`; export check off; unreadable `.wit` → absent). Exactly
+14 tests went red, each in its mutant's group, and none outside them. Gate: floor **major**
+(`SPEC.md v3.0.0 → v4.0.0` + 8 added members). v0.3.0's tests do not compile against the new code
+(they call the removed internals `HTTP_RESPONSE_TIMEOUT` / `loadFromUrl(responseTimeout=)`), and a
+major floor does not require them. **Version decision: 0.4.0** (pre-1.0 Rule 6 minor; README
+`_next release_` row present); not bumped. Push, bump and release are the owner's.
+
 ## SPEC §10 — producer model (2026-07-05, `1e1ecb8`)
 
 - **§10.1** — a reactor's `_initialize` is called once after instantiation, before any other export.
@@ -140,9 +190,9 @@ to 0.2.1 has it. Now, as JS raw `WebAssembly.Exports`:
 
 ## Tests
 
-`./gradlew check` runs the 40 tests (and the API snapshot check). Read counts from
-`build/test-results/test/*.xml`. **40 / 40 on 2026-10-26** (27 + four `wasmImport` HTTP + six raw
-mode + three timeout).
+`./gradlew check` runs the 62 tests (and the API snapshot check). Read counts from
+`build/test-results/test/*.xml`. **62 / 62 on 2026-11-08** (40 / 40 on 2026-10-26; the SPEC 4.0.0
+refusals added 22, § SPEC 4.0.0).
 
 - **Fixtures = the stamped reference set (workspace H7 / C11, 2026-10-26)**, copied unmodified from
   universalWasmLoader-js `36aa661` (on its `origin/main`): the five `*_50` `.wasm`/`.wit` pairs,
@@ -153,7 +203,8 @@ mode + three timeout).
 - **`fixtures match the stamp in fixtures json`** checks every listed sha256 and refuses any
   `.wasm`/`.wit`/`.wat` the stamp does not list; inverted 2026-10-26 (a one-byte change and a stray
   file → "bytes differ", "not in the stamp").
-- Raw mode (no `.wit`) returns `Long`; tests normalize with `(… as Number).toInt()`.
+- Raw mode (no `.wit`) returns `Int` for an i32 since 0.3.0. One leftover `(… as Number).toInt()`
+  from before that (the §10.1 test) still works either way.
 
 ## Build and release
 
