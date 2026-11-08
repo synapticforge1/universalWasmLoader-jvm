@@ -1,15 +1,15 @@
 # Overview — universalWasmLoader-jvm
 
 What it is, decided, and why. State and open items live in [open-work.md](open-work.md) only.
-Rewritten 2026-10-26 (memory conformance; the narrative it replaces: `git show 0af04cb:cmem/overview.md`;
-the old `CLAUDE.md` body it absorbed: `git show 0af04cb:CLAUDE.md`).
+Rewritten 2026-10-26 (memory conformance; the narrative it replaces: `git show 3dbc95b:cmem/overview.md`;
+the old `CLAUDE.md` body it absorbed: `git show 3dbc95b:CLAUDE.md`; pre-purge id `0af04cb`).
 
 ## What it is
 
 The **JVM (Java/Kotlin) port** of the Universal WASM Loader. It loads a `.wasm` module, auto-detects
 the companion `.wit` file, applies the Canonical ABI, and returns a handle keyed by camelCase WIT
 export names — the JVM equivalent of the reference loader, universalWasmLoader-js, whose
-`SPEC.md` (v4.0.0 since 2026-11-08, branch `spec-4.0.0`; v3.0.0 through 0.3.0) is the one spec
+`SPEC.md` (v4.0.0 since 0.4.0, 2026-11-08; v3.0.0 through 0.3.0) is the one spec
 text; this repo links it and keeps no copy (since 2026-10-26).
 
 - **Language:** Kotlin, consumable from any JVM language. **Requires Java 24+** (bytecode target 24,
@@ -135,7 +135,7 @@ to 0.2.1 has it. Now, as JS raw `WebAssembly.Exports`:
   export lookup on every call). The WIT path is untouched; its readings wandered 77–124 ns across
   runs of the SAME old code, so single-run differences there are noise.
 
-## SPEC 4.0.0 (workspace C29; branch `spec-4.0.0`, 2026-11-08)
+## SPEC 4.0.0 (workspace C29; released in 0.4.0, 2026-11-08)
 
 The owner's decisions of 2026-11-07 (loader-js 2.0.0, `-js/SPEC.md` § 2, § 4, § 8 Refusals, § 11).
 It is a break: each rule refuses something 3.0.0 accepted. **Measured on 0.3.0 first** (by reading
@@ -285,7 +285,7 @@ Commit ids in this table are POST-purge (H19, 2026-11-08); the pre-purge ids cit
 | 0.2.0 | `ef3846b` | SPEC §10 (`47c7813`; `_initialize` Breaking row); workspace conformance (`01ef84f`) | run 40406408422 (first from the org, first through the gate); Publish clicked by the owner | live |
 | 0.2.1 | `5ce187e` | `wasmImport` reports a `.wasm` HTTP error (`01a07ae`); plugin 0.37.0, no deprecation; automatic publishing | run 40408929155, published itself | live |
 | 0.3.0 | `cf53474` | raw mode typed by the wasm signature (`d2db3ec`); `wasmImport` timeouts 10 s / 30 s (`fe91d4b`); two Breaking rows | run 40411608731, published itself | live (`<latest>`) |
-| 0.4.0 | `264e6f3` | **SPEC 4.0.0** (`c1c6160` surface + `8b0db4f` behaviour, merge `a8bade1`); the C30 three-job workflow (`ec7398c`, merge `5e6c48d`); first release after the H19 purge | run 42512825706 (🔒 owner: "yes release 0.4.0"), the first run of the split workflow: `checks` / `publish` / `release` all green; published itself; GitHub Release + `release/v0.4.0` = `264e6f3` | syncing (POM 404 minutes after the run) |
+| 0.4.0 | `264e6f3` | **SPEC 4.0.0** (`c1c6160` surface + `8b0db4f` behaviour, merge `a8bade1`); the C30 three-job workflow (`ec7398c`, merge `5e6c48d`); first release after the H19 purge | run 42512825706 (🔒 owner: "yes release 0.4.0"), the first run of the split workflow: `checks` / `publish` / `release` all green; published itself; GitHub Release + `release/v0.4.0` = `264e6f3` | publishing (the owner, 2026-11-08); POM still 404 and `<latest>0.3.0</latest>` at the last read that day |
 
 Every release from 0.2.0 on went through the compatibility gate locally (`bump`) and on the runner
 (`release`). Through 0.3.0 the previous tag's tests were green against the new library; for 0.4.0

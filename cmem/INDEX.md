@@ -11,6 +11,9 @@ workspace floor (`../../../cmem/`) applies underneath; this repo's files govern 
 - **Working memory, not an archive; git is the archive.** Completed work is summarized with its
   commit and a `git show` pointer to the text it replaces.
 - **A number is a claim with a date.** Re-derive before quoting or acting on it.
+- **Commit ids written before 2026-11-08 are PRE-PURGE** (H19 rewrote every id after the root).
+  Look them up in [history-map-2026-11-08.md](history-map-2026-11-08.md); `git show` on an old id
+  fails.
 - **`README.md` is NOT memory.** It is the public doc; internal decision logs stay here.
 - **No secrets or personal information in any committed file** — [working-rules.md](working-rules.md).
 - **Never run a formatter on `cmem/`.**

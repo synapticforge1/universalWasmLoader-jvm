@@ -1,5 +1,5 @@
 > **⚠️ PORTABLE PROJECT MEMORY LIVES IN `cmem/`** — start at [`cmem/INDEX.md`](cmem/INDEX.md).
-> This file is a pointer only (the old 15 KB body: `git show 0af04cb:CLAUDE.md`, absorbed into
+> This file is a pointer only (the old 15 KB body: `git show 3dbc95b:CLAUDE.md`, absorbed into
 > `cmem/overview.md` on 2026-10-26).
 
 > **At session start, and before each new work item, read `../../cmem/workspace-correspondence.md`**

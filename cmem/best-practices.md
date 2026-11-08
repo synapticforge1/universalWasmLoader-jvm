@@ -28,6 +28,27 @@ the next free number; numbers are never reused.
   `0` from 0.1.0 to 0.2.1; its one test (`init_check`) returned an i32, and memory claimed it decoded
   by `ValueType` (2026-10-26, [overview.md](overview.md) § Raw mode). [universalWasmLoader-jvm;
   cf. workspace 4.3]
+- **L6 A history scan reads every commit, not the ref tips.** "No drive path in any commit of any
+  ref" (workspace H25, 2026-10-26) was true of the tips only. A Gradle cache binary tracked in the
+  first 15 commits, including the tagged trees of `v0.1.0` / `v0.1.1`, held the owner's paths. It
+  was found with `git grep -a … $(git rev-list --all)` (2026-11-08,
+  [history-map-2026-11-08.md](history-map-2026-11-08.md)). [universalWasmLoader-jvm]
+- **L7 A history rewrite verifies itself pair by pair, then against a control.** Pair old and new
+  commits by header + message (without tree / parent lines), and require identical metadata, mapped
+  parents, and tree differences that are exactly the planned deletions. Then run the scan on the
+  OLD refs and see it still hit. The pairing caught `filter-branch` stripping the GitHub signature
+  from the clean root (one unpaired commit); the re-run used `^<root>`. After `gc --prune=now`,
+  rebuild the commit-graph, which still listed pruned commits (`fsck` error). (2026-11-08)
+  [universalWasmLoader-jvm; cf. zilc, zailc]
+- **L8 A rule check is inverted by mutants, one per rule, in one run.** Eight mutants, each undoing
+  one SPEC 4.0.0 refusal, turned exactly the 14 matching tests red and none other. That proves each
+  test guards its own rule, which a green run alone cannot show. Read the counts from the XML: a
+  compile error left the OLD XML in place and showed "0 failures" (2026-11-08, [overview.md](overview.md)
+  § SPEC 4.0.0). [universalWasmLoader-jvm; cf. L2]
+- **L9 Know which pushes start workflows before pushing.** GitHub creates no tag events when one
+  push carries more than three tags, so moving all six tags in one `--atomic` push re-ran no
+  `publish.yml`. The Actions API showed only the `main` CI run (2026-11-08). A single tag push
+  (`./gradlew release`) does start one. [universalWasmLoader-jvm; cf. loader-dart's three re-runs]
 
 ## ★ The workspace's convergent rules — a COPY, stamped 2026-10-26 (workspace letters H6, H24, H27, C8)
 

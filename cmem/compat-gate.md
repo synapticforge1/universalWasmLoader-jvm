@@ -44,6 +44,12 @@ files (`build.gradle.kts`, `settings.gradle.kts`, `gradle.properties`, `gradle/`
 replaced by the current ones; its `src/test` (tests AND fixtures) untouched; `gradlew test`. Counts
 read from the JUnit XML: green needs exit 0, at least one test, 0 failures + errors. The worktree is
 always removed. `v0.1.2`: **24 run, 0 failed** against the current library (2026-10-26).
+**0.4.0 (2026-11-08), the first major floor:** `SPEC.md v3.0.0 → v4.0.0` plus 8 added members.
+`v0.3.0`'s tests do not compile against 0.4.0 (they call the removed internals
+`HTTP_RESPONSE_TIMEOUT` and `loadFromUrl(responseTimeout=)`). `report` prints them RED; `bump` and
+`release` skip Rule 3 at a major floor, so `bump minor` passed (Rule 6, with the row). The next
+release compares against `v0.4.0`, whose tests are the SPEC 4.0.0 suite. ⚠️ Tests that call
+`internal` members bind the next release's Rule 3 to those internals.
 
 **Consumers (Rule 3, second half):** no known Maven artifact depends on this one; nothing to run.
 

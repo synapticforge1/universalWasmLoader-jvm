@@ -2,9 +2,11 @@
 
 Only open items; each points at its record. The status line lives here and nowhere else.
 
-**Status (2026-11-08):** **0.4.0 released (SPEC 4.0.0)**: tag `v0.4.0` = `264e6f3` = `origin/main`;
-Publish run 42512825706 green in all three jobs (the new C30 split); GitHub Release created;
-on Central the owner reports 0.4.0 "in process of publishing" (2026-11-08, after the run). History purged (H19) and force-pushed the same day: every commit id after the
+**Status (2026-11-08):** **0.4.0 released (SPEC 4.0.0)**: tag `v0.4.0` = `264e6f3`; `main` =
+`origin/main` (memory commits only after the tag). Publish run 42512825706 green in all three jobs
+(the new C30 split); GitHub Release created. Central: the owner reports 0.4.0 "in process of
+publishing". Re-read later the same day: the `repo1` metadata still says `<latest>0.3.0</latest>`
+and the 0.4.0 POM is 404. History purged (H19) and force-pushed the same day: every commit id after the
 root changed, see [history-map-2026-11-08.md](history-map-2026-11-08.md). Gate: 62 / 62 tests.
 Every release, its contents and run: [overview.md](overview.md) § Release history.
 
