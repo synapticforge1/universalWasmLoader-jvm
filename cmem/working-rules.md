@@ -69,12 +69,10 @@ H22, H28).
 - **Scan before committing**, text AND binaries (`-a`; committed `.wasm` can carry DWARF paths):
   `git grep -a -n -i -E '[A-Za-z]:[\\/]+(Programs|Users|scoop|tools)[\\/]|/[a-z]/(Programs|Users)/'`.
   A secret that reached a remote is rotated, not just deleted.
-- **History: a purge IS needed (H19), not yet done — owner's call.** The workspace measurement for
-  H25 (2026-10-26) found "no drive path in any commit of any ref". That missed it. A blob-level scan
-  of every commit (`git grep -a` over `git rev-list --all`, 2026-11-08) finds the owner's project
-  path and user profile in ONE tracked binary, `.gradle/9.5.1/executionHistory/executionHistory.bin`
-  (Gradle's build cache). It was tracked from the first commit `09bf5c0` until `f3fba2d` (2026-06-17,
-  "Stop tracking generated .gradle/ and build/"), in 15 commits. Tags `v0.1.0` (`09bf5c0`) and
-  `v0.1.1` (`399e7ff`) carry it in their trees. `v0.1.1` also tracks `build/` (196 cache and build
-  files in all). Every later tag and the tip are clean; the only other hits are this file's own rule
-  text. The plan and the decision are in [open-work.md](open-work.md). The commit address is allowed.
+- **History: purged 2026-11-08 (H19; 🔒 owner: "perform the H19 purge").** A tracked Gradle cache
+  binary (`.gradle/…/executionHistory.bin`) held the owner's project path and user profile in the
+  first 15 commits, including the trees of tags `v0.1.0` / `v0.1.1`. The workspace's H25 scan read
+  ref tips only and missed it. `.gradle/` and `build/` were removed from every commit, and every id
+  after the root changed. Record and old → new map: [history-map-2026-11-08.md](history-map-2026-11-08.md).
+  **Scan every commit, not the tips:** `git grep -a … $(git rev-list --all)`. The commit address is
+  allowed.

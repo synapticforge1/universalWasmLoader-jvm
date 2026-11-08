@@ -37,4 +37,5 @@ workspace floor (`../../../cmem/`) applies underneath; this repo's files govern 
 | [overview.md](overview.md) | What the port is and why: runtime, coordinates (🔒 groupId stays), design principles, API (HTTP errors, time limit, cancellation), ABI and typed raw mode, SPEC 4.0.0 (refusals, strict WIT), SPEC §10, tests and fixtures, build / release / automatic publishing, credentials, release history |
 | [working-rules.md](working-rules.md) | How an increment is done here: ledger first, git, the gate, `.main.kts` scripts, the privacy rule and its path test |
 | [compat-gate.md](compat-gate.md) | The SemVer compatibility gate: API snapshot, floor, previous-tag tests, Breaking row; the `bump.sh` port proof; the inversion; traps |
+| [history-map-2026-11-08.md](history-map-2026-11-08.md) | The H19 history purge (`.gradle/` / `build/` removed from every commit): how it was verified, and every pre-purge → post-purge commit id |
 | [best-practices.md](best-practices.md) | This repo's own rules (§ L) and the workspace's 28 ★ rules, copied verbatim under a dated stamp |

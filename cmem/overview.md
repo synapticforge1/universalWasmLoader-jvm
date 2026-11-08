@@ -41,8 +41,8 @@ text; this repo links it and keeps no copy (since 2026-10-26).
    from the SPEC itself:** SPEC 4.0.0 §1 / §11 (the owner's decision, 2026-11-07) requires an
    `options` argument for the fetch time limit, so `wasmImport` has a 3-argument overload taking
    `LoadOptions(timeout)` (2026-11-08). The 2-argument form and every other entry point stay
-   zero-configuration, and the defaults are the SPEC's. 🗓️ Owner to confirm the exception
-   ([open-work.md](open-work.md)).
+   zero-configuration, and the defaults are the SPEC's. 🔒 **Owner, 2026-11-08: "I confirm the
+   exception."**
 4. Version pinning `@N` follows the C SONAME convention, not Maven versioning.
 5. `createSingleton` and `InstancePool` share the same minimal signature.
 6. All project memory lives in `cmem/` (committed, portable); nothing in machine-local stores
