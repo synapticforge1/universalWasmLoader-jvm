@@ -55,6 +55,15 @@ H22, H28).
   script (H31 measured "No Bun version written: … loader-jvm"; H30's change was made in Kotlin, so
   it added none). One-time probes run with Bun leave nothing behind. Nothing to move; if a Bun pin
   is ever added, it is the installed version.
+- 🔒 **Every new tag gets its GitHub Release page from CI, never by hand** (owner, 2026-11-09;
+  workspace letter H32, row C41). Here that is `publish.yml`'s `release` job
+  ([overview.md](overview.md) § Build and release). Only NEW tags get pages: v0.1.0–v0.1.2 have
+  none and keep none (owner: "only new tags will get release pages"). Measured 2026-11-09: 8 tags,
+  5 pages, all by `github-actions[bot]`.
+- **`git fetch` only in this repo** (workspace Tooling rule 9). To read a sibling's file (e.g.
+  -js's `SPEC.md`), use `git -C <sibling> show origin/main:<file>` on what is already fetched, or
+  GitHub's raw file over HTTPS; never fetch in the sibling. (Broken once on 2026-11-09; it moved
+  only loader-js's `origin/*` tracking refs.)
 - **No `bun -e "…"` either** (workspace Tooling rule 2: an inline script is a heredoc). A one-time
   probe is a file in the scratchpad, deleted after use.
 - A one-time probe deleted after use may be a shell script, still written with `Write`.
