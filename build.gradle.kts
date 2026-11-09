@@ -7,7 +7,7 @@ plugins {
 }
 
 group = "io.github.jrmarcum"
-version = "0.4.1"
+version = "0.4.2"
 
 repositories {
     mavenCentral()
