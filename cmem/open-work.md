@@ -2,13 +2,14 @@
 
 Only open items; each points at its record. The status line lives here and nowhere else.
 
-**Status (2026-11-08):** **0.4.0 released (SPEC 4.0.0)**: tag `v0.4.0` = `264e6f3`; `main` =
-`origin/main` (memory commits only after the tag). Publish run 42512825706 green in all three jobs
-(the new C30 split); GitHub Release created. **Live on Maven Central** (owner: "it is officially
-published now"; read back 2026-11-08: `<latest>0.4.0</latest>`, `lastUpdated` 20261108191302; the
-POM, jar, `.asc` and sources jar answer 200). The README install snippets name 0.4.0. History purged (H19) and force-pushed the same day: every commit id after the
-root changed, see [history-map-2026-11-08.md](history-map-2026-11-08.md). Gate: 62 / 62 tests.
-Every release, its contents and run: [overview.md](overview.md) § Release history.
+**Status (2026-11-09):** **0.4.1 being released** (owner: "update the project memory files,
+commit, push then release"). It is a patch: the H30 release job (`bf7737b`, merge `3aa60e2`), with
+no library change. Gate `report` against `v0.4.0`: floor **patch**; v0.4.0's tests GREEN, 62 run,
+0 failed. Latest live: **0.4.0** (SPEC 4.0.0; tag `v0.4.0` = `264e6f3`; Publish run 42512825706;
+Maven Central `<latest>0.4.0</latest>`, read 2026-11-08). History purged (H19) on 2026-11-08:
+every commit id after the root changed, see [history-map-2026-11-08.md](history-map-2026-11-08.md).
+Gate: 62 / 62 tests. Every release, its contents and run: [overview.md](overview.md) § Release
+history.
 
 ## Owner actions (🗓️)
 

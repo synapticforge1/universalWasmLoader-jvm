@@ -61,6 +61,7 @@ src/test/resources/tests/            # the stamped reference fixtures + fixtures
 api/universal-wasm-loader-jvm.api    # the public API snapshot (compat gate Rule 1)
 api/v0.1.2.api                       # the released surface of v0.1.2, generated from the tag
 scripts/compat.main.kts              # compatibility gate + version bump (replaced bump.sh)
+scripts/github-release.main.kts      # publish.yml's release job: branch + GitHub Release by REST (H30)
 ```
 
 ## Public API (the `api/` snapshot is the authoritative list)
