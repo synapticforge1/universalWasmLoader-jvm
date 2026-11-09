@@ -231,7 +231,8 @@ refusals added 22, § SPEC 4.0.0).
   creates whatever is missing, and reads both back. An existing Release means done, so re-runs
   are safe. `selftest`: 17 checks against an in-process mock API, run in `checks` and `ci.yml`.
   This replaced the GitHub CLI calls on 2026-11-09 (workspace H30; 0.4.0's run still used the
-  CLI).
+  CLI). **Measured on GitHub in 0.4.1's run** (42640047554): Release + branch created, read back,
+  and the tag unmoved.
   Before the split (through 0.3.0) ONE `contents: write` job ran everything, with the token in the
   clone's remote URL and unpinned downloads (the JDK was "latest 25"). `gradle-wrapper.properties`
   now pins the Gradle distribution (`distributionSha256Sum`, 9.5.1, checked against a download
@@ -294,7 +295,8 @@ Commit ids in this table are POST-purge (H19, 2026-11-08); the pre-purge ids cit
 | 0.2.0 | `ef3846b` | SPEC §10 (`47c7813`; `_initialize` Breaking row); workspace conformance (`01ef84f`) | run 40406408422 (first from the org, first through the gate); Publish clicked by the owner | live |
 | 0.2.1 | `5ce187e` | `wasmImport` reports a `.wasm` HTTP error (`01a07ae`); plugin 0.37.0, no deprecation; automatic publishing | run 40408929155, published itself | live |
 | 0.3.0 | `cf53474` | raw mode typed by the wasm signature (`d2db3ec`); `wasmImport` timeouts 10 s / 30 s (`fe91d4b`); two Breaking rows | run 40411608731, published itself | live (`<latest>`) |
-| 0.4.0 | `264e6f3` | **SPEC 4.0.0** (`c1c6160` surface + `8b0db4f` behaviour, merge `a8bade1`); the C30 three-job workflow (`ec7398c`, merge `5e6c48d`); first release after the H19 purge | run 42512825706 (🔒 owner: "yes release 0.4.0"), the first run of the split workflow: `checks` / `publish` / `release` all green; published itself; GitHub Release + `release/v0.4.0` = `264e6f3` | live (`<latest>`, read 2026-11-08; `lastUpdated` 20261108191302) |
+| 0.4.0 | `264e6f3` | **SPEC 4.0.0** (`c1c6160` surface + `8b0db4f` behaviour, merge `a8bade1`); the C30 three-job workflow (`ec7398c`, merge `5e6c48d`); first release after the H19 purge | run 42512825706 (🔒 owner: "yes release 0.4.0"), the first run of the split workflow: `checks` / `publish` / `release` all green; published itself; GitHub Release + `release/v0.4.0` = `264e6f3` | live (read 2026-11-08; `lastUpdated` 20261108191302) |
+| 0.4.1 | `f08fb7e` | patch, no library change: the H30 release job (`bf7737b`, merge `3aa60e2`); gate floor patch, v0.4.0's 62 tests green | run 42640047554 (🔒 owner: "… push then release"), all three jobs green. **First run of the REST release job, measured:** `scripts/github-release.main.kts` created GitHub Release `v0.4.1` (`github-actions[bot]`, 15:02:04Z, not a draft, generated notes `v0.4.0...v0.4.1`) and `release/v0.4.1` = `f08fb7e`. The tag did not move (`ls-remote`) | syncing (POM 404 at the first read) |
 
 Every release from 0.2.0 on went through the compatibility gate locally (`bump`) and on the runner
 (`release`). Through 0.3.0 the previous tag's tests were green against the new library; for 0.4.0

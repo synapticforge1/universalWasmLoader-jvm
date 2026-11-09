@@ -2,29 +2,27 @@
 
 Only open items; each points at its record. The status line lives here and nowhere else.
 
-**Status (2026-11-09):** **0.4.1 being released** (owner: "update the project memory files,
-commit, push then release"). It is a patch: the H30 release job (`bf7737b`, merge `3aa60e2`), with
-no library change. Gate `report` against `v0.4.0`: floor **patch**; v0.4.0's tests GREEN, 62 run,
-0 failed. Latest live: **0.4.0** (SPEC 4.0.0; tag `v0.4.0` = `264e6f3`; Publish run 42512825706;
-Maven Central `<latest>0.4.0</latest>`, read 2026-11-08). History purged (H19) on 2026-11-08:
+**Status (2026-11-09):** **0.4.1 released** (owner: "update the project memory files, commit,
+push then release"): tag `v0.4.1` = `f08fb7e`. It is a patch carrying the H30 release job, with no
+library change (gate: floor patch; v0.4.0's tests GREEN, 62 run). Publish run 42640047554 was
+green in all three jobs. The new REST release job created GitHub Release `v0.4.1` and
+`release/v0.4.1` (measured; see overview § Release history). Central: still syncing at the first
+read (`<latest>0.4.0</latest>`, the 0.4.1 POM 404). 0.4.0 (SPEC 4.0.0) is live. History purged (H19) on 2026-11-08:
 every commit id after the root changed, see [history-map-2026-11-08.md](history-map-2026-11-08.md).
 Gate: 62 / 62 tests. Every release, its contents and run: [overview.md](overview.md) § Release
 history.
 
 ## Owner actions (🗓️)
 
+- **Confirm 0.4.1 appears** in
+  `https://repo1.maven.org/maven2/io/github/jrmarcum/universal-wasm-loader-jvm/maven-metadata.xml`
+  (`<latest>0.4.1</latest>`), then the README install snippets move to 0.4.1 (they name 0.4.0
+  until then).
+
 - **H19 follow-up: the GitHub Support request** so that the old commits are no longer served by hash
   ([history-map-2026-11-08.md](history-map-2026-11-08.md) § Still open). The purge itself is done.
 
 ## Backlog
-
-- 🟡 **H30's release script is UNMEASURED on GitHub until the next tag run** (2026-11-09). It is
-  proven by its 17-check self-test (two mutants caught: commit check off → writes happen; dry-run
-  guard off → a dry run writes) and by read-only dry runs against the real API: `v0.4.0` and
-  `v0.2.0` at their commits → branch + Release found, nothing to do; `v0.4.0` claimed at `v0.3.0`'s
-  commit → refused; `v9.9.9` → refused; no token without `--dry-run` → refused. The next release's
-  `release` job is the measurement: read the GitHub Release back through the REST API, and check
-  the tag did not move.
 
 - 🟡 **README third-party note** (optional, 2026-10-26 licence check): name the Gradle wrapper's
   Apache-2.0 licence and record where `math.wasm` came from (added in `09bf5c0`, provenance not
