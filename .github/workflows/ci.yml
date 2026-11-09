@@ -60,3 +60,7 @@ jobs:
 
       - name: Compatibility gate self-test
         run: kotlin scripts/compat.main.kts selftest
+
+      # publish.yml's release script, against its mock API (no network, no token).
+      - name: Release script self-test
+        run: kotlin scripts/github-release.main.kts selftest

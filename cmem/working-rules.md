@@ -40,9 +40,23 @@ H22, H28).
 
 - **Committed scripts are Kotlin `.main.kts`**, run with `kotlin <file>.main.kts` (the cached `.jar`
   it compiles is allowed: "Java and Kotlin can use the jar files"). No committed bash, PowerShell or
-  `.bat` scripts; `gradlew` / `gradlew.bat` are Gradle's generated wrapper, not scripts. The one
-  committed script is `scripts/compat.main.kts`; it replaced `scripts/bump.sh` after the output-diff
-  proof in [compat-gate.md](compat-gate.md).
+  `.bat` scripts; `gradlew` / `gradlew.bat` are Gradle's generated wrapper, not scripts. Committed
+  scripts: `scripts/compat.main.kts` (it replaced `scripts/bump.sh` after the output-diff proof in
+  [compat-gate.md](compat-gate.md)) and `scripts/github-release.main.kts` (2026-11-09, H30).
+- 🔒 **No GitHub CLI, in CI too** (owner, 2026-11-08; workspace Tooling rule 9, letter H30). Check the
+  repo instead: `git ls-remote`, the repo's files, Maven Central's `repo1` metadata, GitHub's
+  public REST API. A web-UI-only task (a Support request, a Release page by hand) is an owner item.
+  In a workflow, GitHub's REST API with `GITHUB_TOKEN`, from this repo's own mechanism (Kotlin,
+  JDK classes only, as -dart used Dart and -dotnet `.csx`), not a Bun step. Re-grep:
+  `git grep -n -I -w gh -- . ':!cmem' ':!*.md'` → 0 hits (`-I`: the wrapper jar is binary and
+  matches by chance).
+- 🔒 **Bun-version notations are the latest installed Bun** (owner, 2026-11-09; workspace Tooling
+  rule 10, letter H31). This repo names no Bun version and runs no Bun, in CI or in a committed
+  script (H31 measured "No Bun version written: … loader-jvm"; H30's change was made in Kotlin, so
+  it added none). One-time probes run with Bun leave nothing behind. Nothing to move; if a Bun pin
+  is ever added, it is the installed version.
+- **No `bun -e "…"` either** (workspace Tooling rule 2: an inline script is a heredoc). A one-time
+  probe is a file in the scratchpad, deleted after use.
 - A one-time probe deleted after use may be a shell script, still written with `Write`.
 - **No heredocs, ever**, for any content. File content goes through `Write` / `Edit`.
 - **Line endings are LF**: `.gitattributes` is wildcard-first (`* text=auto eol=lf`).
