@@ -17,6 +17,14 @@ Every release, its contents and run: [overview.md](overview.md) § Release histo
 
 ## Backlog
 
+- 🟡 **H30's release script is UNMEASURED on GitHub until the next tag run** (2026-11-09). It is
+  proven by its 17-check self-test (two mutants caught: commit check off → writes happen; dry-run
+  guard off → a dry run writes) and by read-only dry runs against the real API: `v0.4.0` and
+  `v0.2.0` at their commits → branch + Release found, nothing to do; `v0.4.0` claimed at `v0.3.0`'s
+  commit → refused; `v9.9.9` → refused; no token without `--dry-run` → refused. The next release's
+  `release` job is the measurement: read the GitHub Release back through the REST API, and check
+  the tag did not move.
+
 - 🟡 **README third-party note** (optional, 2026-10-26 licence check): name the Gradle wrapper's
   Apache-2.0 licence and record where `math.wasm` came from (added in `09bf5c0`, provenance not
   recorded; almost certainly the owner's wasmtk). The repo complies without it.
@@ -33,7 +41,9 @@ limit, tested); the WIT call path's linear export lookup (now a map).
 
 ## Workspace ledger
 
-Rows in `../../../cmem/workspace-correspondence.md` naming this repo. **Answered 2026-11-08:** C29
+Rows in `../../../cmem/workspace-correspondence.md` naming this repo. **Answered 2026-11-09:** H30
+(no GitHub CLI in CI: the Kotlin REST script), H31 (record-only: no Bun version here). C29 is
+CLOSED for -jvm by loader-js. **Answered 2026-11-08:** C29
 (SPEC 4.0.0, released in 0.4.0), H29 (its follow-up, C29), H19 (purged and pushed), C30 (the split,
 released in 0.4.0's run) and C34 (record-only); notes row C36. **Answered 2026-10-26** (each
 cell names the commit; C18 carries the notes and releases): H6, H7 / C11, H15, H16, H17 / H25 §1,

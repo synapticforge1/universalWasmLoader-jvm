@@ -9,8 +9,11 @@
 #   publish  contents: read. A fresh runner and a tokenless clone; refuses unless the tag
 #            still points at the commit `checks` passed. Runs only the Gradle publish task
 #            (tests skipped). The four publishing secrets exist in that one step's env.
-#   release  contents: write. No checkout and no build: `git ls-remote` + `gh` only.
-#            Creates the release/<tag> branch and the GitHub Release.
+#   release  contents: write. No build: a tokenless clone (for the script only), the pinned JDK +
+#            Kotlin, then scripts/github-release.main.kts — GitHub's REST API with the job's
+#            GITHUB_TOKEN, JDK classes only (workspace H30: no GitHub CLI, in CI too). It
+#            requires the tag on GitHub to peel to github.sha before any write, then creates
+#            the release/<tag> branch and the GitHub Release when missing, and reads both back.
 #
 # Every download is pinned by version AND sha256 (the JDK, the Kotlin compiler; the Gradle
 # distribution through gradle-wrapper.properties' distributionSha256Sum). No `uses:` steps.
@@ -63,7 +66,7 @@ jobs:
       - name: Install JDK 25.0.5+8 (Temurin, pinned)
         run: |
           set -euo pipefail
-          curl -fsSL "${JDK_URL}" -o /tmp/jdk.tar.gz
+          curl -fsSL --retry 4 --retry-all-errors "${JDK_URL}" -o /tmp/jdk.tar.gz
           echo "${JDK_SHA256}  /tmp/jdk.tar.gz" | sha256sum -c -
           mkdir -p "$HOME/jdk" && tar -xzf /tmp/jdk.tar.gz -C "$HOME/jdk" --strip-components=1
           echo "JAVA_HOME=$HOME/jdk" >> "$GITHUB_ENV"
@@ -72,7 +75,7 @@ jobs:
       - name: Install the Kotlin 2.2.0 compiler (pinned; for scripts/compat.main.kts)
         run: |
           set -euo pipefail
-          curl -fsSL "${KOTLINC_URL}" -o /tmp/kotlinc.zip
+          curl -fsSL --retry 4 --retry-all-errors "${KOTLINC_URL}" -o /tmp/kotlinc.zip
           echo "${KOTLINC_SHA256}  /tmp/kotlinc.zip" | sha256sum -c -
           unzip -q /tmp/kotlinc.zip -d "$HOME"
           echo "$HOME/kotlinc/bin" >> "$GITHUB_PATH"
@@ -95,6 +98,10 @@ jobs:
           kotlin scripts/compat.main.kts selftest
           kotlin scripts/compat.main.kts release
 
+      # The release job's script, against its mock API (no network, no token).
+      - name: Release script self-test
+        run: kotlin scripts/github-release.main.kts selftest
+
   publish:
     name: Publish to Maven Central
     needs: checks
@@ -111,7 +118,7 @@ jobs:
       - name: Install JDK 25.0.5+8 (Temurin, pinned)
         run: |
           set -euo pipefail
-          curl -fsSL "${JDK_URL}" -o /tmp/jdk.tar.gz
+          curl -fsSL --retry 4 --retry-all-errors "${JDK_URL}" -o /tmp/jdk.tar.gz
           echo "${JDK_SHA256}  /tmp/jdk.tar.gz" | sha256sum -c -
           mkdir -p "$HOME/jdk" && tar -xzf /tmp/jdk.tar.gz -C "$HOME/jdk" --strip-components=1
           echo "JAVA_HOME=$HOME/jdk" >> "$GITHUB_ENV"
@@ -135,21 +142,34 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-    env:
-      GH_TOKEN: ${{ github.token }}
     steps:
-      - name: Require the tag at the published commit
+      # Tokenless: the clone only supplies the script, at the commit that was tested.
+      - name: Clone the tag (no token) and require the published commit
         run: |
           set -euo pipefail
-          at="$(git ls-remote "https://github.com/${GITHUB_REPOSITORY}.git" "refs/tags/${GITHUB_REF_NAME}" | cut -f1)"
-          test "${at}" = "${GITHUB_SHA}" || { echo "❌ tag ${GITHUB_REF_NAME} is at '${at}', not ${GITHUB_SHA}"; exit 1; }
+          git clone --depth=1 --branch "${GITHUB_REF_NAME}" "https://github.com/${GITHUB_REPOSITORY}.git" .
+          test "$(git rev-parse HEAD)" = "${GITHUB_SHA}" || { echo "❌ the tag no longer points at ${GITHUB_SHA}"; exit 1; }
 
-      - name: Create release/<tag> branch
+      - name: Install JDK 25.0.5+8 (Temurin, pinned)
         run: |
-          gh api "repos/${GITHUB_REPOSITORY}/git/refs" \
-            -f ref="refs/heads/release/${GITHUB_REF_NAME}" -f sha="${GITHUB_SHA}"
+          set -euo pipefail
+          curl -fsSL --retry 4 --retry-all-errors "${JDK_URL}" -o /tmp/jdk.tar.gz
+          echo "${JDK_SHA256}  /tmp/jdk.tar.gz" | sha256sum -c -
+          mkdir -p "$HOME/jdk" && tar -xzf /tmp/jdk.tar.gz -C "$HOME/jdk" --strip-components=1
+          echo "JAVA_HOME=$HOME/jdk" >> "$GITHUB_ENV"
+          echo "$HOME/jdk/bin"       >> "$GITHUB_PATH"
 
-      - name: Create GitHub Release
+      - name: Install the Kotlin 2.2.0 compiler (pinned)
         run: |
-          gh release create "${GITHUB_REF_NAME}" --repo "${GITHUB_REPOSITORY}" \
-            --title "${GITHUB_REF_NAME}" --target "release/${GITHUB_REF_NAME}" --generate-notes
+          set -euo pipefail
+          curl -fsSL --retry 4 --retry-all-errors "${KOTLINC_URL}" -o /tmp/kotlinc.zip
+          echo "${KOTLINC_SHA256}  /tmp/kotlinc.zip" | sha256sum -c -
+          unzip -q /tmp/kotlinc.zip -d "$HOME"
+          echo "$HOME/kotlinc/bin" >> "$GITHUB_PATH"
+
+      # The tag must peel to github.sha on GitHub before anything is written; an existing branch
+      # or Release is kept, so a re-run of this job is safe.
+      - name: Create release/<tag> branch and GitHub Release (REST API)
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: kotlin scripts/github-release.main.kts release "${GITHUB_REF_NAME}" "${GITHUB_SHA}"

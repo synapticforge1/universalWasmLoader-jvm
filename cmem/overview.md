@@ -221,8 +221,16 @@ refusals added 22, § SPEC 4.0.0).
   `github.sha` → pinned JDK → `./gradlew -x test publishAllPublicationsToMavenCentralRepository`
   (vanniktech `com.vanniktech.maven.publish` **0.37.0**, Central Portal, GPG in-memory signing).
   The four secrets live in that one step's env.
-  `release` {contents: write}: no checkout, no build; `git ls-remote` asserts the tag →
-  `gh api` creates `release/v<version>` → `gh release create`.
+  `release` {contents: write}: no build. A tokenless clone (it only supplies the script) is
+  required at `github.sha`, then the pinned JDK + Kotlin run `scripts/github-release.main.kts
+  release <tag> <sha>`. The script uses GitHub's REST API with the job's `GITHUB_TOKEN` and JDK
+  classes only, so no dependency is resolved. It requires the tag on GitHub to peel to the
+  commit before any write, because `POST /releases` would CREATE a missing tag (loader-rs's
+  hazard). It keeps an existing `release/<tag>` at the same commit and refuses one elsewhere,
+  creates whatever is missing, and reads both back. An existing Release means done, so re-runs
+  are safe. `selftest`: 17 checks against an in-process mock API, run in `checks` and `ci.yml`.
+  This replaced the GitHub CLI calls on 2026-11-09 (workspace H30; 0.4.0's run still used the
+  CLI).
   Before the split (through 0.3.0) ONE `contents: write` job ran everything, with the token in the
   clone's remote URL and unpinned downloads (the JDK was "latest 25"). `gradle-wrapper.properties`
   now pins the Gradle distribution (`distributionSha256Sum`, 9.5.1, checked against a download
