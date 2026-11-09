@@ -229,11 +229,16 @@ refusals added 22, § SPEC 4.0.0).
   `release` {contents: write}: no build. A tokenless clone (it only supplies the script) is
   required at `github.sha`, then the pinned JDK + Kotlin run `scripts/github-release.main.kts
   release <tag> <sha>`. The script uses GitHub's REST API with the job's `GITHUB_TOKEN` and JDK
-  classes only, so no dependency is resolved. It requires the tag on GitHub to peel to the
-  commit before any write, because `POST /releases` would CREATE a missing tag (loader-rs's
-  hazard). It keeps an existing `release/<tag>` at the same commit and refuses one elsewhere,
-  creates whatever is missing, and reads both back. An existing Release means done, so re-runs
-  are safe. `selftest`: 17 checks against an in-process mock API, run in `checks` and `ci.yml`.
+  classes only, so no dependency is resolved. **Order = the workspace's H32 recipe** (fixed
+  2026-11-09; the H30 version checked the branch before the page): (1) the tag on GitHub must
+  peel to the commit, because `POST /releases` would CREATE a missing tag (loader-rs's hazard);
+  (2) an existing Release = done, with NO write; (3) `release/<tag>` is kept at the same commit,
+  refused elsewhere, or created and read back, then the Release is POSTed with the Maven Central
+  link on top of the generated notes, read back, and the tag re-checked. **Every call is held to
+  30 s to the last byte** (`sendAsync().get(limit)`; `HttpRequest.timeout` alone ends at the
+  headers). GETs retry 3×. `selftest`: 22 checks against an in-process mock API (incl. a
+  pre-header stall and a body stall), run in `checks` and `ci.yml`. Inverted: no page check → 2
+  red; no total limit → the body-stall case red (it waited 40 s); no link → 1 red.
   This replaced the GitHub CLI calls on 2026-11-09 (workspace H30; 0.4.0's run still used the
   CLI). **Measured on GitHub in 0.4.1's run** (42640047554): Release + branch created, read back,
   and the tag unmoved.
