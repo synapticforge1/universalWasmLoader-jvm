@@ -6,18 +6,13 @@ Only open items; each points at its record. The status line lives here and nowhe
 push then release"): tag `v0.4.1` = `f08fb7e`. It is a patch carrying the H30 release job, with no
 library change (gate: floor patch; v0.4.0's tests GREEN, 62 run). Publish run 42640047554 was
 green in all three jobs. The new REST release job created GitHub Release `v0.4.1` and
-`release/v0.4.1` (measured; see overview § Release history). Central: still syncing at the first
-read (`<latest>0.4.0</latest>`, the 0.4.1 POM 404). 0.4.0 (SPEC 4.0.0) is live. History purged (H19) on 2026-11-08:
+`release/v0.4.1` (measured; see overview § Release history). **Live on Maven Central**
+(`<latest>0.4.1</latest>`, read 2026-11-09); the README install snippets name 0.4.1. History purged (H19) on 2026-11-08:
 every commit id after the root changed, see [history-map-2026-11-08.md](history-map-2026-11-08.md).
 Gate: 62 / 62 tests. Every release, its contents and run: [overview.md](overview.md) § Release
 history.
 
 ## Owner actions (🗓️)
-
-- **Confirm 0.4.1 appears** in
-  `https://repo1.maven.org/maven2/io/github/jrmarcum/universal-wasm-loader-jvm/maven-metadata.xml`
-  (`<latest>0.4.1</latest>`), then the README install snippets move to 0.4.1 (they name 0.4.0
-  until then).
 
 - **H19 follow-up: the GitHub Support request** so that the old commits are no longer served by hash
   ([history-map-2026-11-08.md](history-map-2026-11-08.md) § Still open). The purge itself is done.
@@ -40,7 +35,10 @@ limit, tested); the WIT call path's linear export lookup (now a map).
 
 ## Workspace ledger
 
-Rows in `../../../cmem/workspace-correspondence.md` naming this repo. **Answered 2026-11-09:** H30
+Rows in `../../../cmem/workspace-correspondence.md` naming this repo. **Answered 2026-11-09
+(later):** H32 / C41 (record-only: release pages are already made by CI here; first new page
+`v0.4.1` by `github-actions[bot]`). SPEC 4.0.1 (C35's port allowance) needs no change here.
+**Answered 2026-11-09:** H30
 (no GitHub CLI in CI: the Kotlin REST script), H31 (record-only: no Bun version here). C29 is
 CLOSED for -jvm by loader-js. **Answered 2026-11-08:** C29
 (SPEC 4.0.0, released in 0.4.0), H29 (its follow-up, C29), H19 (purged and pushed), C30 (the split,
