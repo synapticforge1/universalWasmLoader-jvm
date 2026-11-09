@@ -2,11 +2,13 @@
 
 Only open items; each points at its record. The status line lives here and nowhere else.
 
-**Status (2026-11-09):** **0.4.2 being released** (owner: "update the project memory files,
-commit, push and release"). It is a patch carrying the H32-ordered release script (`8ae7f61`), with
-no library change. Gate `report` against `v0.4.1`: floor **patch**; v0.4.1's tests GREEN, 62 run,
-0 failed. Latest live: **0.4.1** (tag `v0.4.1` = `f08fb7e`; Publish run 42640047554; Maven
-Central `<latest>0.4.1</latest>`, read 2026-11-09; the README install snippets name it). History purged (H19) on 2026-11-08:
+**Status (2026-11-09):** **0.4.2 released and live** (owner: "update the project memory files,
+commit, push and release"): tag `v0.4.2` = `598d321`. It is a patch carrying the H32-ordered
+release script (`8ae7f61`), with no library change (gate: floor patch; v0.4.1's tests GREEN, 62
+run). Publish run 42668202944 was green in all three jobs. GitHub Release `v0.4.2` was made by
+`github-actions[bot]` with the Maven Central link on top (measured). Maven Central:
+`<latest>0.4.2</latest>`, and the POM, jar, `.asc` and sources jar answer 200 (read minutes after
+the run). The README install snippets name 0.4.2. History purged (H19) on 2026-11-08:
 every commit id after the root changed, see [history-map-2026-11-08.md](history-map-2026-11-08.md).
 Gate: 62 / 62 tests. Every release, its contents and run: [overview.md](overview.md) § Release
 history.
@@ -18,12 +20,6 @@ history.
 
 ## Backlog
 
-- 🟡 **The H32-ordered release script (`8ae7f61`) is UNMEASURED on GitHub until the next tag
-  run.** 0.4.1's run measured the H30 version. The change is the order (page check before the
-  branch), the total time limit and the Maven link. It is proven by the self-test (22 checks,
-  three mutants caught) and by read-only dry runs on the real API. At the next tag, read the page
-  back (`author.login` = `github-actions[bot]`, the Maven link on top) and check the tag did not
-  move.
 
 - 🟡 **README third-party note** (optional, 2026-10-26 licence check): name the Gradle wrapper's
   Apache-2.0 licence and record where `math.wasm` came from (added in `09bf5c0`, provenance not
