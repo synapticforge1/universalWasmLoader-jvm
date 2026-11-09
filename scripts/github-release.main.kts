@@ -12,15 +12,18 @@
 // the public API without it), GITHUB_API_URL (default https://api.github.com; the self-test
 // points it at a mock).
 //
-// Order, and why:
+// Order — the workspace's H32 recipe (owner, 2026-11-09), kept as written:
 //  1. The tag must already exist on GitHub and peel (annotated tags followed) to <commit-sha>.
 //     POST /releases would otherwise CREATE a missing tag at the default branch — the CLI's
 //     --verify-tag used to refuse that (hazard found by loader-rs, 2026-11-09).
-//  2. release/<tag>: kept when it already points at <commit-sha>, refused when it points
-//     elsewhere, created when missing, then read back.
-//  3. The GitHub Release: an existing one means done (so a re-run is safe); otherwise it is
-//     created with generated notes, then read back.
-// Every refusal happens before any write. Exit 0 = done (or nothing to do), 1 = refused or failed.
+//  2. A GitHub Release already there = done, with NO write (so a re-run is safe).
+//  3. Otherwise: release/<tag> (kept when it points at <commit-sha>, refused when it points
+//     elsewhere, created and read back when missing; the Release targets it), then POST the
+//     Release with generated notes and the Maven Central link on top, read it back, and re-check
+//     the tag.
+// Every network call is held to its own time limit, request to the last byte of the body
+// (workspace best-practice 7.21). Every refusal happens before any write.
+// Exit 0 = done (or nothing to do), 1 = refused or failed.
 
 import java.io.FileDescriptor
 import java.io.FileOutputStream
@@ -41,17 +44,28 @@ val TAG_FORM = Regex("""^v\d+\.\d+\.\d+$""")
 val SHA_FORM = Regex("""^[0-9a-f]{40}$""")
 val REPO_FORM = Regex("""^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$""")
 
-class Api(base: String, private val token: String?, val repo: String) {
+class Api(
+    base: String,
+    private val token: String?,
+    val repo: String,
+    private val limitMs: Long = 30_000,   // per request, to the last byte of the body
+    private val backoffMs: Long = 2_000,
+) {
     private val base = base.trimEnd('/')
-    private val client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build()
+    private val client = HttpClient.newBuilder()
+        .connectTimeout(Duration.ofMillis(minOf(limitMs, 10_000))).build()
 
-    /** One request. A GET is retried on a 5xx or an I/O error (3 attempts); a write never is. */
+    /**
+     * One request, held to [limitMs] from the request to the last byte (HttpRequest.timeout alone
+     * stops counting when the headers arrive). A GET is retried on a 5xx, an I/O error or the time
+     * limit (3 attempts); a write never is.
+     */
     fun call(method: String, path: String, body: String? = null): Pair<Int, String> {
         val attempts = if (method == "GET") 3 else 1
         var last: Exception? = null
         for (n in 1..attempts) {
             val b = HttpRequest.newBuilder(URI.create("$base/repos/$repo$path"))
-                .timeout(Duration.ofSeconds(30))
+                .timeout(Duration.ofMillis(limitMs))
                 .header("Accept", "application/vnd.github+json")
                 .header("X-GitHub-Api-Version", "2022-11-28")
                 .header("User-Agent", "universalWasmLoader-jvm-release")
@@ -61,14 +75,18 @@ class Api(base: String, private val token: String?, val repo: String) {
             } else {
                 b.method(method, HttpRequest.BodyPublishers.noBody())
             }
+            val pending = client.sendAsync(b.build(), HttpResponse.BodyHandlers.ofString())
             try {
-                val r = client.send(b.build(), HttpResponse.BodyHandlers.ofString())
-                if (r.statusCode() >= 500 && n < attempts) { Thread.sleep(2000L * n); continue }
+                val r = pending.get(limitMs, java.util.concurrent.TimeUnit.MILLISECONDS)
+                if (r.statusCode() >= 500 && n < attempts) { Thread.sleep(backoffMs * n); continue }
                 return r.statusCode() to r.body()
-            } catch (e: java.io.IOException) {
-                last = e
-                if (n < attempts) Thread.sleep(2000L * n)
+            } catch (e: java.util.concurrent.TimeoutException) {
+                pending.cancel(true)
+                last = java.io.IOException("$method $path did not complete within $limitMs ms")
+            } catch (e: java.util.concurrent.ExecutionException) {
+                last = (e.cause as? Exception) ?: e
             }
+            if (n < attempts) Thread.sleep(backoffMs * n)
         }
         throw last ?: IllegalStateException("$method $path failed")
     }
@@ -114,7 +132,14 @@ fun release(api: Api, tag: String, sha: String, dryRun: Boolean, hasToken: Boole
         if (at != sha) throw Refused("tag $tag is at $at on GitHub, not $sha")
         println("✓ tag $tag → $sha on GitHub")
 
-        // 2. release/<tag>
+        // 2. A Release already there = done, with no write (H32).
+        val (gs, gb) = api.call("GET", "/releases/tags/$tag")
+        when {
+            gs == 200 -> { println("✓ GitHub Release $tag already exists, nothing written: ${field(gb, "html_url")}"); return 0 }
+            gs != 404 -> throw Refused("reading release $tag: HTTP $gs")
+        }
+
+        // 3a. release/<tag>, which the Release targets
         val branch = "release/$tag"
         val (bs, bb) = api.call("GET", "/git/ref/heads/$branch")
         when {
@@ -134,14 +159,14 @@ fun release(api: Api, tag: String, sha: String, dryRun: Boolean, hasToken: Boole
             }
         }
 
-        // 3. The GitHub Release
-        val (gs, gb) = api.call("GET", "/releases/tags/$tag")
-        when {
-            gs == 200 -> { println("✓ GitHub Release $tag already exists: ${field(gb, "html_url")}"); return 0 }
-            gs != 404 -> throw Refused("reading release $tag: HTTP $gs")
-            dryRun -> { println("would create GitHub Release $tag (target $branch, generated notes)"); return 0 }
-        }
-        val body = """{"tag_name":"$tag","target_commitish":"$branch","name":"$tag","generate_release_notes":true}"""
+        // 3b. The GitHub Release: generated notes, with the registry link on top (H32). GitHub
+        // prepends `body` to the generated notes.
+        if (dryRun) { println("would create GitHub Release $tag (target $branch, Maven Central link + generated notes)"); return 0 }
+        val version = tag.removePrefix("v")
+        val registry = "Maven Central: [io.github.jrmarcum:universal-wasm-loader-jvm:$version]" +
+            "(https://central.sonatype.com/artifact/io.github.jrmarcum/universal-wasm-loader-jvm/$version)"
+        val body = """{"tag_name":"$tag","target_commitish":"$branch","name":"$tag",""" +
+            """"body":"$registry","generate_release_notes":true}"""
         val (ps, pb) = api.call("POST", "/releases", body)
         if (ps != 201) throw Refused("creating GitHub Release $tag: HTTP $ps ${pb.take(200)}")
         val (vs, vb) = api.call("GET", "/releases/tags/$tag")
@@ -173,21 +198,32 @@ class Mock : AutoCloseable {
     var auth: String? = null
     var lastBody: String = ""
     var failReleasePost = false
+    @Volatile var stallMs = 0L          // > 0: every answer waits this long before its headers
+    @Volatile var stallBodyMs = 0L      // > 0: headers and one byte go out, then the body stalls
+    private val pool = java.util.concurrent.Executors.newCachedThreadPool()
     private val server = com.sun.net.httpserver.HttpServer.create(
         java.net.InetSocketAddress(java.net.InetAddress.getLoopbackAddress(), 0), 0
     )
     val url: String
 
     init {
+        server.executor = pool
         server.createContext("/") { ex ->
             val path = ex.requestURI.path.removePrefix("/repos/o/r")
             val body = ex.requestBody.readBytes().toString(Charsets.UTF_8)
-            log += "${ex.requestMethod} $path"
+            synchronized(log) { log += "${ex.requestMethod} $path" }
+            if (stallMs > 0) try { Thread.sleep(stallMs) } catch (_: InterruptedException) {}
             if (ex.requestMethod != "GET") { auth = ex.requestHeaders.getFirst("Authorization"); lastBody = body }
             fun send(status: Int, json: String) {
                 val bytes = json.toByteArray()
                 ex.sendResponseHeaders(status, if (bytes.isEmpty()) -1 else bytes.size.toLong())
-                if (bytes.isNotEmpty()) ex.responseBody.use { it.write(bytes) }
+                if (bytes.isNotEmpty()) ex.responseBody.use {
+                    if (stallBodyMs > 0) {
+                        it.write(bytes, 0, 1); it.flush()
+                        try { Thread.sleep(stallBodyMs) } catch (_: InterruptedException) {}
+                        it.write(bytes, 1, bytes.size - 1)
+                    } else it.write(bytes)
+                }
                 ex.close()
             }
             val obj = { type: String, sha: String -> """{"object":{"sha":"$sha","type":"$type","url":"x"}}""" }
@@ -218,8 +254,8 @@ class Mock : AutoCloseable {
         url = "http://127.0.0.1:${server.address.port}"
     }
 
-    fun writes() = log.filter { !it.startsWith("GET ") }
-    override fun close() = server.stop(0)
+    fun writes() = synchronized(log) { log.filter { !it.startsWith("GET ") } }
+    override fun close() { server.stop(0); pool.shutdownNow() }
 }
 
 fun selftest(): Int {
@@ -231,8 +267,8 @@ fun selftest(): Int {
         checks++
         if (ok) println("  ✓ $name") else { failed++; println("  ✗ $name") }
     }
-    fun run(m: Mock, tag: String, sha: String, dry: Boolean = false, token: String? = "t0k") =
-        release(Api(m.url, token, "o/r"), tag, sha, dry, !token.isNullOrEmpty())
+    fun run(m: Mock, tag: String, sha: String, dry: Boolean = false, token: String? = "t0k", limitMs: Long = 30_000) =
+        release(Api(m.url, token, "o/r", limitMs, backoffMs = 10), tag, sha, dry, !token.isNullOrEmpty())
 
     Mock().use { m ->
         m.tags["v1.0.0"] = "commit" to a
@@ -242,6 +278,8 @@ fun selftest(): Int {
         check("create: Bearer token sent on writes", m.auth == "Bearer t0k")
         check("create: generated notes, target the release branch",
             m.lastBody.contains("\"generate_release_notes\":true") && m.lastBody.contains("\"target_commitish\":\"release/v1.0.0\""))
+        check("create: the Maven Central link on top of the notes",
+            m.lastBody.contains("central.sonatype.com/artifact/io.github.jrmarcum/universal-wasm-loader-jvm/1.0.0"))
         m.log.clear()
         check("re-run: exit 0", run(m, "v1.0.0", a) == 0)
         check("re-run: no write", m.writes().isEmpty())
@@ -266,9 +304,37 @@ fun selftest(): Int {
         check("branch at another commit: refused, no write", run(m, "v1.0.0", a) == 1 && m.writes().isEmpty())
     }
     Mock().use { m ->
+        // H32 order: an existing Release is done with NO write, even if release/<tag> is missing.
+        m.tags["v1.0.0"] = "commit" to a
+        m.releases += "v1.0.0"
+        check("existing Release, branch missing: exit 0, no write", run(m, "v1.0.0", a) == 0 && m.writes().isEmpty())
+    }
+    Mock().use { m ->
         m.tags["v1.0.0"] = "commit" to a
         check("dry run: exit 0, no write", run(m, "v1.0.0", a, dry = true, token = null) == 0 && m.writes().isEmpty())
-        check("no token without --dry-run: refused, no request", run(m, "v1.0.0", a, token = null) == 1 && m.writes().isEmpty())
+    }
+    Mock().use { m ->
+        m.tags["v1.0.0"] = "commit" to a
+        check("no token without --dry-run: refused, no request", run(m, "v1.0.0", a, token = null) == 1 && m.log.isEmpty())
+    }
+    Mock().use { m ->
+        // Every call has its own time limit (best-practice 7.21): a stalled API fails, fast.
+        m.tags["v1.0.0"] = "commit" to a
+        m.stallMs = 5_000
+        val t0 = System.nanoTime()
+        val code = run(m, "v1.0.0", a, limitMs = 200)
+        val ms = (System.nanoTime() - t0) / 1_000_000
+        check("stalled API: exit 1 within the limit (3 × 200 ms + backoff; took $ms ms)", code == 1 && ms < 3_000)
+        check("stalled API: no write", m.writes().isEmpty())
+    }
+    Mock().use { m ->
+        // The limit runs to the last byte: HttpRequest.timeout alone ends at the headers.
+        m.tags["v1.0.0"] = "commit" to a
+        m.stallBodyMs = 5_000
+        val t0 = System.nanoTime()
+        val code = run(m, "v1.0.0", a, limitMs = 200)
+        val ms = (System.nanoTime() - t0) / 1_000_000
+        check("body stalls after the headers: exit 1 within the limit (took $ms ms)", code == 1 && ms < 3_000)
     }
     Mock().use { m ->
         m.tags["v1.0.0"] = "commit" to a
