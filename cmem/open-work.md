@@ -19,6 +19,13 @@ history.
 
 ## Backlog
 
+- 🟡 **The H32-ordered release script (`8ae7f61`) is UNMEASURED on GitHub until the next tag
+  run.** 0.4.1's run measured the H30 version. The change is the order (page check before the
+  branch), the total time limit and the Maven link. It is proven by the self-test (22 checks,
+  three mutants caught) and by read-only dry runs on the real API. At the next tag, read the page
+  back (`author.login` = `github-actions[bot]`, the Maven link on top) and check the tag did not
+  move.
+
 - 🟡 **README third-party note** (optional, 2026-10-26 licence check): name the Gradle wrapper's
   Apache-2.0 licence and record where `math.wasm` came from (added in `09bf5c0`, provenance not
   recorded; almost certainly the owner's wasmtk). The repo complies without it.
@@ -36,8 +43,9 @@ limit, tested); the WIT call path's linear export lookup (now a map).
 ## Workspace ledger
 
 Rows in `../../../cmem/workspace-correspondence.md` naming this repo. **Answered 2026-11-09
-(later):** H32 / C41 (record-only: release pages are already made by CI here; first new page
-`v0.4.1` by `github-actions[bot]`). SPEC 4.0.1 (C35's port allowance) needs no change here.
+(later):** H32 / C41: release pages are already made by CI here (first new page `v0.4.1` by
+`github-actions[bot]`); the order was confirmed against the recipe and fixed to match it
+(`8ae7f61`). SPEC 4.0.1 (C35's port allowance) needs no change here.
 **Answered 2026-11-09:** H30
 (no GitHub CLI in CI: the Kotlin REST script), H31 (record-only: no Bun version here). C29 is
 CLOSED for -jvm by loader-js. **Answered 2026-11-08:** C29
