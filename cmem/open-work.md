@@ -2,12 +2,11 @@
 
 Only open items; each points at its record. The status line lives here and nowhere else.
 
-**Status (2026-11-09):** **0.4.1 released** (owner: "update the project memory files, commit,
-push then release"): tag `v0.4.1` = `f08fb7e`. It is a patch carrying the H30 release job, with no
-library change (gate: floor patch; v0.4.0's tests GREEN, 62 run). Publish run 42640047554 was
-green in all three jobs. The new REST release job created GitHub Release `v0.4.1` and
-`release/v0.4.1` (measured; see overview § Release history). **Live on Maven Central**
-(`<latest>0.4.1</latest>`, read 2026-11-09); the README install snippets name 0.4.1. History purged (H19) on 2026-11-08:
+**Status (2026-11-09):** **0.4.2 being released** (owner: "update the project memory files,
+commit, push and release"). It is a patch carrying the H32-ordered release script (`8ae7f61`), with
+no library change. Gate `report` against `v0.4.1`: floor **patch**; v0.4.1's tests GREEN, 62 run,
+0 failed. Latest live: **0.4.1** (tag `v0.4.1` = `f08fb7e`; Publish run 42640047554; Maven
+Central `<latest>0.4.1</latest>`, read 2026-11-09; the README install snippets name it). History purged (H19) on 2026-11-08:
 every commit id after the root changed, see [history-map-2026-11-08.md](history-map-2026-11-08.md).
 Gate: 62 / 62 tests. Every release, its contents and run: [overview.md](overview.md) § Release
 history.
