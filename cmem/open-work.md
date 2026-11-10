@@ -2,12 +2,12 @@
 
 Only open items; each points at its record. The status line lives here and nowhere else.
 
-**Status (2026-11-10):** latest release **0.4.2**, live (tag `v0.4.2` = `598d321`; Maven Central
-`<latest>0.4.2</latest>`; the README install snippets name it). **The release process was
-converged to the workspace's H33 shape on the working branch `h33-release-process`, NOT merged
-into `main` and NOT pushed (H34: that is "push", the owner's word):** `bump` takes a required level and commits itself; `./gradlew release` pushes `main`
+**Status (2026-11-10):** **releasing 0.4.3** (owner: "release", level patch). Latest live:
+**0.4.2** (tag `v0.4.2` = `598d321`; Maven Central `<latest>0.4.2</latest>`). The release process
+was converged to the workspace's H33 shape (branch `h33-release-process`, merged into `main` for
+this release): `bump` takes a required level and commits itself; `./gradlew release` pushes `main`
 only; CI checks, tags, makes the page and publishes ([release.md](release.md)). The local half was
-rehearsed end to end against a scratch origin. Gate: 62 / 62 tests. History purged (H19) on
+rehearsed end to end against a scratch origin; 0.4.3 is the first release through it. Gate: 62 / 62 tests. History purged (H19) on
 2026-11-08 (every id after the root changed; [history-map-2026-11-08.md](history-map-2026-11-08.md)).
 Every release, its summary and run: [release.md](release.md) § Release History.
 
