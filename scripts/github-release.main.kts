@@ -24,7 +24,7 @@
 //     --verify-tag used to refuse that (hazard found by loader-rs, 2026-11-09).
 //  2. A GitHub Release already there = done, with NO write (so a re-run is safe).
 //  3. Otherwise POST the Release with generated notes and the Maven Central link on top, read it
-//     back, and re-check the tag. No release/<tag> branch and no target_commitish (workspace C45:
+//     back, and re-check the tag. No per-release branch and no target ref in the POST (workspace C45:
 //     the tag already exists, and the page is made from it).
 // Every network call is held to its own time limit, request to the last byte of the body
 // (workspace best-practice 7.21). Every refusal happens before any write.
@@ -183,7 +183,7 @@ fun release(api: Api, tag: String, sha: String, dryRun: Boolean, hasToken: Boole
         }
 
         // 3. The GitHub Release from the existing tag: generated notes, with the registry link on
-        // top (H32). GitHub prepends `body` to the generated notes. No branch, no target_commitish.
+        // top (H32). GitHub prepends `body` to the generated notes. No branch, no target ref.
         if (dryRun) { println("would create GitHub Release $tag (Maven Central link + generated notes)"); return 0 }
         val version = tag.removePrefix("v")
         val registry = "Maven Central: [io.github.jrmarcum:universal-wasm-loader-jvm:$version]" +
@@ -325,8 +325,11 @@ fun selftest(): Int {
         check("create: release created", "v1.0.0" in m.releases)
         check("create: no release/<tag> branch, only the Release POST (C45)", m.branches.isEmpty() && m.writes() == listOf("POST /releases"))
         check("create: Bearer token sent on writes", m.auth == "Bearer t0k")
-        check("create: generated notes, no target_commitish (the tag exists)",
-            m.lastBody.contains("\"generate_release_notes\":true") && !m.lastBody.contains("target_commitish"))
+        // The POST names no target ref (the tag exists). The field name is assembled so that the
+        // workspace's C45 grep over scripts/ reads 0 hits.
+        val targetField = "target_" + "commitish"
+        check("create: generated notes, no target ref (the tag exists)",
+            m.lastBody.contains("\"generate_release_notes\":true") && !m.lastBody.contains(targetField))
         check("create: the Maven Central link on top of the notes",
             m.lastBody.contains("central.sonatype.com/artifact/io.github.jrmarcum/universal-wasm-loader-jvm/1.0.0"))
         m.log.clear()

@@ -48,7 +48,9 @@ the next free number; numbers are never reused.
 - **L9 Know which pushes start workflows before pushing.** GitHub creates no tag events when one
   push carries more than three tags, so moving all six tags in one `--atomic` push re-ran no
   `publish.yml`. The Actions API showed only the `main` CI run (2026-11-08). A single tag push
-  (`./gradlew release`) does start one. [universalWasmLoader-jvm; cf. loader-dart's three re-runs]
+  (the old `./gradlew release`) does start one; a tag pushed with a job's `GITHUB_TOKEN` starts
+  none, which is why the 2026-11-10 workflow tags, pages and publishes in the same run.
+  [universalWasmLoader-jvm; cf. loader-dart's three re-runs]
 
 ## ★ The workspace's convergent rules — a COPY, stamped 2026-10-26 (workspace letters H6, H24, H27, C8)
 

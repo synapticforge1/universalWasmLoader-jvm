@@ -19,8 +19,12 @@ H22, H28).
   own; adopted 2026-10-26). Docs and memory land in the same commit as the code they describe.
 - **Commit messages go through a file**: `git commit -F <file>`, the file written with `Write`. Never a
   heredoc, never a double-quoted `-m`.
-- **Nothing is pushed, tagged or published unless the owner says so.** `./gradlew release` tags AND
-  force-pushes the tag, which publishes: it is an owner action.
+- **Nothing is pushed, tagged or published unless the owner says so.** Since 2026-11-10 (workspace
+  H33) nothing is tagged from this machine: `./gradlew release` pushes `main` only, and CI checks,
+  tags, makes the page and publishes ([release.md](release.md)). ⚠️ **The version line in
+  `build.gradle.kts` ARMS a release**: any push of `main` that carries a version with no tag yet
+  is released by CI. So the version line moves only through `bump`, as the last commit before
+  `./gradlew release`.
 - **The version line in `build.gradle.kts` stays at the released version** until a gated bump
   (`./gradlew bump`); never bump in the change that merges.
 

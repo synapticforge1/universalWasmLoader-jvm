@@ -48,7 +48,13 @@ fun ok(msg: String) = println("✓ $msg")
 data class Run(val exit: Int, val out: String)
 
 fun run(vararg cmd: String, timeoutMin: Long = 60): Run {
-    val p = ProcessBuilder(*cmd).directory(root).redirectErrorStream(true).start()
+    val pb = ProcessBuilder(*cmd).directory(root).redirectErrorStream(true)
+    // This script runs under the `kotlin` launcher, which exports JAVA_OPTS with quoted values;
+    // a nested kotlin.bat then fails to parse `if "%JAVA_OPTS%"==""` (measured 2026-11-10:
+    // `"=ALL-UNNAMED" … was unexpected at this time`). Children start without the launcher's own
+    // variables.
+    pb.environment().keys.removeIf { it == "JAVA_OPTS" || it == "KOTLIN_OPTS" || it.startsWith("_KOTLIN") }
+    val p = pb.start()
     val out = p.inputStream.bufferedReader().readText()
     if (!p.waitFor(timeoutMin, TimeUnit.MINUTES)) { p.destroyForcibly(); return Run(-1, "$out\n(timed out)") }
     return Run(p.exitValue(), out)

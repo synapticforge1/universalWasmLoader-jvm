@@ -243,34 +243,45 @@ downloads the correct Gradle version automatically.
 
 The single source of truth for the version is the `version = "X.Y.Z"` line in `build.gradle.kts`.
 
-**1. Bump the version** (patch/minor/major; patch is the default). The bump runs the compatibility
-gate and refuses a bump below the floor it computes:
+No tag is made by hand. CI checks the pushed commit first, then creates the tag, then the GitHub
+Release page from the tag, then publishes to Maven Central.
+
+**1. Bump the version.** The level is required (there is no default). The bump refuses a dirty
+working tree, runs the compatibility gate, refuses a level below the floor it computes, and then
+commits `bump to vX.Y.Z` itself:
 
 ```sh
-./gradlew bump                 # patch:  0.1.2 -> 0.1.3
-./gradlew bump -Pkind=minor    # minor:  0.1.2 -> 0.2.0
-./gradlew bump -Pkind=major    # major:  0.1.2 -> 1.0.0
-# or directly:  kotlin scripts/compat.main.kts bump [patch|minor|major]
+./gradlew bump -Pkind=patch    # 0.4.2 -> 0.4.3
+./gradlew bump -Pkind=minor    # 0.4.2 -> 0.5.0
+./gradlew bump -Pkind=major    # 0.4.2 -> 1.0.0
+# or directly:  kotlin scripts/compat.main.kts bump patch|minor|major
 # floor only:   kotlin scripts/compat.main.kts report
 ```
 
 A public API change re-baselines the snapshot first, in its own commit: `./gradlew updateLegacyAbi`.
 Requires the `kotlin` command-line compiler on `PATH`.
 
-**2. Commit, then tag + push** to trigger CI:
+**2. Push `main`:**
 
 ```sh
-git commit -am "bump version to v0.1.3"
-./gradlew release              # tags v<version> and force-pushes the tag
+./gradlew release              # guards + a cold gate, then pushes main only (no tag)
+./gradlew release -PdryRun     # every guard and the gate, pushes nothing
 ```
 
-Pushing the `v*` tag runs `.github/workflows/publish.yml`. It has three jobs, each with only the
-privilege it needs. `checks` (read-only, no secrets) runs the tests and the compatibility gate
-against the previous tag. `publish` (read-only, on a fresh runner) checks the tag still points at
-the tested commit, then publishes the signed artifacts to **Maven Central** (Sonatype Central
-Portal) via the `com.vanniktech.maven.publish` plugin; it is the only job that sees the secrets.
-`release` (write access, no build) creates the `release/<tag>` branch and the GitHub Release. The
-JDK, the Kotlin compiler and the Gradle distribution are pinned by version and SHA-256.
+It refuses unless the tree is clean, the branch is `main` and a fast-forward of `origin/main`, the
+tag is new locally and on GitHub, and Maven Central does not have the version yet.
+
+The push runs `.github/workflows/publish.yml` ("Release"), four jobs, each with only the
+permission it needs:
+- `checks` (read-only, no secrets): the tests and the compatibility gate.
+- `tag`: only for a version that has no tag yet; creates the annotated tag on the checked commit.
+- `release`: the GitHub Release page from that tag.
+- `publish`: skips when Maven Central already has the version. Otherwise it publishes the signed
+  artifacts via the `com.vanniktech.maven.publish` plugin, and it is the only job that sees the
+  secrets. It then reads the artifacts back from Maven Central and verifies the jar's signature.
+
+A push of `main` whose version is already tagged runs `checks` only. The JDK, the Kotlin compiler
+and the Gradle distribution are pinned by version and SHA-256.
 
 > **`run:`-only workflow.** The publish workflow uses **no third-party `uses:` steps**: checkout is
 > `git clone`, the JDK is installed via `run:`, and the committed Gradle wrapper drives the build.
