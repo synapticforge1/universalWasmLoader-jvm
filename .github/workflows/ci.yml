@@ -1,12 +1,12 @@
-# CI on every push to main and every pull request: the same gate as the local one
-# (cmem/working-rules.md § The gate): `./gradlew check` (tests + the api/ snapshot
-# check) and the compatibility gate's self-test. run:-only, like publish.yml.
+# CI on every pull request: the same gate as the local one (cmem/working-rules.md § The
+# gate): `./gradlew check` (tests + the api/ snapshot check) and both scripts' self-tests.
+# run:-only, like publish.yml. Pushes to `main` are checked by publish.yml's `checks` job
+# (since 2026-11-10, workspace H33: checks first on every push, then tag / page / publish
+# only for a new version), so this workflow no longer runs on them.
 
 name: CI
 
 on:
-  push:
-    branches: [main]
   pull_request: {}
 
 jobs:

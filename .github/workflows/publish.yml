@@ -1,23 +1,34 @@
-# Publish to Maven Central (Sonatype Central Portal) on a v* tag.
+# Release: on every push to `main` — checks first; and when the pushed version has no tag yet,
+# then the tag, then the GitHub Release page from the tag, then the Maven Central publish.
 #
-# THREE JOBS, EACH WITH ONLY THE PRIVILEGE IT NEEDS (workspace C30; owner, 2026-11-08:
-# "yes use the C30 split workflow"; models: loader-dart cb7bc26, loader-go 2ff71ef):
+# 🔒 The owner's order (2026-11-10; workspace letter H33, `release-process.md` § 5 U5–U9): "the CI
+# to check first, then push the tag, and then create the release page from the tag, then publish
+# the package to the registry for the project in that order." Locally, `./gradlew release`
+# (scripts/release.main.kts) only pushes `main` with the bump commit; it makes no tag. A tag that
+# the job's GITHUB_TOKEN pushes starts no new workflow run, so all four steps run here, by `needs:`.
 #
-#   checks   contents: read. Tokenless clone. Runs everything that executes third-party
-#            code for the gate: the build, the tests, the compatibility gate (which also
-#            runs the previous tag's tests). No secret, no write token.
-#   publish  contents: read. A fresh runner and a tokenless clone; refuses unless the tag
-#            still points at the commit `checks` passed. Runs only the Gradle publish task
-#            (tests skipped). The four publishing secrets exist in that one step's env.
-#   release  contents: write. No build: a tokenless clone (for the script only), the pinned JDK +
-#            Kotlin, then scripts/github-release.main.kts — GitHub's REST API with the job's
-#            GITHUB_TOKEN, JDK classes only (workspace H30: no GitHub CLI, in CI too). It
-#            requires the tag on GitHub to peel to github.sha before any write, then creates
-#            the release/<tag> branch and the GitHub Release when missing, and reads both back.
+# FOUR JOBS, EACH WITH ONLY ITS OWN PERMISSION (top level: none; workspace C30):
+#
+#   checks   contents: read. Token-less clone of the pushed commit (HEAD = github.sha). The build,
+#            the tests, the compatibility gate in release mode (the floor and the previous tag's
+#            tests), both scripts' self-tests. Then "is this a release?": the version line has no
+#            tag on GitHub yet.
+#   tag      contents: write; only when `checks` passed on THIS commit and the version is new. The
+#            annotated tag v<version> on github.sha, through the REST API, read back
+#            (scripts/github-release.main.kts tag). A tag at another commit is refused.
+#   release  contents: write. The GitHub Release page FROM the tag, in the workspace's H32 order:
+#            tag peels to github.sha → an existing page is done → POST with generated notes and the
+#            Maven Central link on top → read back → peel again (… release). No branch (C45).
+#   publish  contents: read. Skips the upload when Maven Central already serves the version (a
+#            re-run is safe); otherwise the Gradle publish task (tests skipped), the four secrets in
+#            that one step. Then the read-back, FATAL: the POM, jar, `.asc` and sources jar answer 200
+#            on repo1 (polled, Central syncs in minutes), and the jar's signature verifies against
+#            the pinned signing-key fingerprint (GnuPG VALIDSIG).
 #
 # Every download is pinned by version AND sha256 (the JDK, the Kotlin compiler; the Gradle
-# distribution through gradle-wrapper.properties' distributionSha256Sum). No `uses:` steps.
-# No `concurrency:` group: a later run queues instead of cancelling one mid-publish (C30 (2)).
+# distribution through gradle-wrapper.properties' distributionSha256Sum). No `uses:` steps, no
+# GitHub CLI (H30). One concurrency group per ref that never cancels (a run mid-publish finishes).
+# Failure: "Re-run failed jobs" — each job skips what is done; never a new tag for the same code.
 #
 # Required GitHub repository secrets (Settings → Secrets and variables → Actions):
 #   MAVEN_CENTRAL_USERNAME   Central Portal user token name   (→ ORG_GRADLE_PROJECT_mavenCentralUsername)
@@ -28,40 +39,52 @@
 # The com.vanniktech.maven.publish plugin reads the ORG_GRADLE_PROJECT_* names directly
 # (in-memory signing + Central Portal upload); no settings.xml or secring.gpg file is needed.
 
-name: Publish
+name: Release
 
 on:
   push:
-    tags:
-      - 'v*'
-  # Manual trigger: Actions → Publish → "Run workflow", with a TAG (v0.2.0 or later) picked
-  # from the ref dropdown. `checks` refuses a branch ref.
+    branches: [main]
+  # Manual trigger on `main` (Actions → Release → "Run workflow"): the same run as a push.
   workflow_dispatch: {}
+
+permissions: {}
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
 
 env:
   JDK_URL: https://github.com/adoptium/temurin25-binaries/releases/download/jdk-25.0.5%2B8/OpenJDK25U-jdk_x64_linux_hotspot_25.0.5_8.tar.gz
   JDK_SHA256: 68982529869257d0ee6b824ec5aa270ff8b118bb438670da0b97ebdab178d7fb
   KOTLINC_URL: https://github.com/JetBrains/kotlin/releases/download/v2.2.0/kotlin-compiler-2.2.0.zip
   KOTLINC_SHA256: 1adb6f1a5845ba0aa5a59e412e44c8e405236b957de1a9683619f1dca3b16932
+  # The release signing key (public fingerprint; read from the 0.4.2 jar's signature, which
+  # verifies against it — cmem/release.md).
+  SIGNING_KEY_FPR: E4D45440A37F73383B38842FFF9D45E2AFFFFB6D
+  MAVEN_PATH: io/github/jrmarcum/universal-wasm-loader-jvm
 
 jobs:
   checks:
-    name: Checks (tests + compatibility gate)
+    name: Checks (tests + compatibility gate) — first
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    outputs:
+      version: ${{ steps.is-release.outputs.version }}
+      is_release: ${{ steps.is-release.outputs.is_release }}
     steps:
-      - name: Refuse a non-tag ref
+      - name: Refuse a ref other than main
         run: |
-          case "${GITHUB_REF}" in refs/tags/v*) ;; *) echo "❌ not a v* tag: ${GITHUB_REF}"; exit 1 ;; esac
+          test "${GITHUB_REF}" = "refs/heads/main" || { echo "❌ releases run on main only, not ${GITHUB_REF}"; exit 1; }
 
-      - name: Clone the tag (no token)
+      - name: Clone the pushed commit (no token)
         run: |
           set -euo pipefail
-          git clone --depth=1 --branch "${GITHUB_REF_NAME}" "https://github.com/${GITHUB_REPOSITORY}.git" .
-          test "$(git rev-parse HEAD)" = "${GITHUB_SHA}" || { echo "❌ the tag moved since the run started"; exit 1; }
+          git init -q . && git remote add origin "https://github.com/${GITHUB_REPOSITORY}.git"
+          git fetch -q --depth=1 origin "${GITHUB_SHA}" && git checkout -q FETCH_HEAD
+          test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
           # The compatibility gate compares against the previous tag: fetch every tag (shallow).
-          git fetch --depth=1 origin 'refs/tags/*:refs/tags/*'
+          git fetch -q --depth=1 origin 'refs/tags/*:refs/tags/*'
 
       - name: Install JDK 25.0.5+8 (Temurin, pinned)
         run: |
@@ -72,7 +95,7 @@ jobs:
           echo "JAVA_HOME=$HOME/jdk" >> "$GITHUB_ENV"
           echo "$HOME/jdk/bin"       >> "$GITHUB_PATH"
 
-      - name: Install the Kotlin 2.2.0 compiler (pinned; for scripts/compat.main.kts)
+      - name: Install the Kotlin 2.2.0 compiler (pinned; for the scripts)
         run: |
           set -euo pipefail
           curl -fsSL --retry 4 --retry-all-errors "${KOTLINC_URL}" -o /tmp/kotlinc.zip
@@ -90,65 +113,43 @@ jobs:
       - name: Check
         run: ./gradlew --no-daemon check
 
-      # Self-test of the gate's logic, then this tag against the previous one: version
-      # agreement, the SPEC/API floor, the Breaking Changes row, and the previous tag's
-      # tests against this library (cmem/compat-gate.md).
+      # The gate's self-test, then this version against the previous tag: the SPEC/API floor, the
+      # Breaking Changes row, and the previous tag's tests against this library.
       - name: Compatibility gate
         run: |
           kotlin scripts/compat.main.kts selftest
           kotlin scripts/compat.main.kts release
 
-      # The release job's script, against its mock API (no network, no token).
       - name: Release script self-test
         run: kotlin scripts/github-release.main.kts selftest
 
-  publish:
-    name: Publish to Maven Central
+      # A release = the version line names a version that has no tag on GitHub yet.
+      - name: Is this a release?
+        id: is-release
+        run: |
+          set -euo pipefail
+          version="$(kotlin scripts/compat.main.kts version)"
+          echo "${version}" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' || { echo "❌ bad version line: ${version}"; exit 1; }
+          if [ -z "$(git ls-remote --tags origin "refs/tags/v${version}")" ]; then is_release=true; else is_release=false; fi
+          echo "version=${version}"       >> "$GITHUB_OUTPUT"
+          echo "is_release=${is_release}" >> "$GITHUB_OUTPUT"
+          echo "version ${version}: release = ${is_release}"
+
+  tag:
+    name: Tag v<version> on the checked commit
     needs: checks
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    steps:
-      - name: Clone the tag (no token) and require the tested commit
-        run: |
-          set -euo pipefail
-          git clone --depth=1 --branch "${GITHUB_REF_NAME}" "https://github.com/${GITHUB_REPOSITORY}.git" .
-          test "$(git rev-parse HEAD)" = "${GITHUB_SHA}" || { echo "❌ the tag no longer points at the commit checks passed"; exit 1; }
-
-      - name: Install JDK 25.0.5+8 (Temurin, pinned)
-        run: |
-          set -euo pipefail
-          curl -fsSL --retry 4 --retry-all-errors "${JDK_URL}" -o /tmp/jdk.tar.gz
-          echo "${JDK_SHA256}  /tmp/jdk.tar.gz" | sha256sum -c -
-          mkdir -p "$HOME/jdk" && tar -xzf /tmp/jdk.tar.gz -C "$HOME/jdk" --strip-components=1
-          echo "JAVA_HOME=$HOME/jdk" >> "$GITHUB_ENV"
-          echo "$HOME/jdk/bin"       >> "$GITHUB_PATH"
-
-      # The only step that sees the secrets. Tests already ran in `checks`; skipping them
-      # here keeps the test suite (and its dependencies) away from the signing key.
-      - name: Publish (signed) to Maven Central
-        env:
-          ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
-          ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
-          ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.GPG_PRIVATE_KEY }}
-          ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.GPG_PASSPHRASE }}
-        run: |
-          chmod +x gradlew
-          ./gradlew --no-daemon -x test publishAllPublicationsToMavenCentralRepository
-
-  release:
-    name: Release branch + GitHub Release
-    needs: publish
+    if: needs.checks.outputs.is_release == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
-      # Tokenless: the clone only supplies the script, at the commit that was tested.
-      - name: Clone the tag (no token) and require the published commit
+      # Token-less: the clone only supplies the script, at the commit that was checked.
+      - name: Clone the checked commit (no token)
         run: |
           set -euo pipefail
-          git clone --depth=1 --branch "${GITHUB_REF_NAME}" "https://github.com/${GITHUB_REPOSITORY}.git" .
-          test "$(git rev-parse HEAD)" = "${GITHUB_SHA}" || { echo "❌ the tag no longer points at ${GITHUB_SHA}"; exit 1; }
+          git init -q . && git remote add origin "https://github.com/${GITHUB_REPOSITORY}.git"
+          git fetch -q --depth=1 origin "${GITHUB_SHA}" && git checkout -q FETCH_HEAD
+          test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
 
       - name: Install JDK 25.0.5+8 (Temurin, pinned)
         run: |
@@ -167,9 +168,133 @@ jobs:
           unzip -q /tmp/kotlinc.zip -d "$HOME"
           echo "$HOME/kotlinc/bin" >> "$GITHUB_PATH"
 
-      # The tag must peel to github.sha on GitHub before anything is written; an existing branch
-      # or Release is kept, so a re-run of this job is safe.
-      - name: Create release/<tag> branch and GitHub Release (REST API)
+      - name: Create the annotated tag (REST API), read back
         env:
           GITHUB_TOKEN: ${{ github.token }}
-        run: kotlin scripts/github-release.main.kts release "${GITHUB_REF_NAME}" "${GITHUB_SHA}"
+          VERSION: ${{ needs.checks.outputs.version }}
+        run: kotlin scripts/github-release.main.kts tag "v${VERSION}" "${GITHUB_SHA}"
+
+  release:
+    name: GitHub Release page from the tag
+    needs: [checks, tag]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Clone the checked commit (no token)
+        run: |
+          set -euo pipefail
+          git init -q . && git remote add origin "https://github.com/${GITHUB_REPOSITORY}.git"
+          git fetch -q --depth=1 origin "${GITHUB_SHA}" && git checkout -q FETCH_HEAD
+          test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
+
+      - name: Install JDK 25.0.5+8 (Temurin, pinned)
+        run: |
+          set -euo pipefail
+          curl -fsSL --retry 4 --retry-all-errors "${JDK_URL}" -o /tmp/jdk.tar.gz
+          echo "${JDK_SHA256}  /tmp/jdk.tar.gz" | sha256sum -c -
+          mkdir -p "$HOME/jdk" && tar -xzf /tmp/jdk.tar.gz -C "$HOME/jdk" --strip-components=1
+          echo "JAVA_HOME=$HOME/jdk" >> "$GITHUB_ENV"
+          echo "$HOME/jdk/bin"       >> "$GITHUB_PATH"
+
+      - name: Install the Kotlin 2.2.0 compiler (pinned)
+        run: |
+          set -euo pipefail
+          curl -fsSL --retry 4 --retry-all-errors "${KOTLINC_URL}" -o /tmp/kotlinc.zip
+          echo "${KOTLINC_SHA256}  /tmp/kotlinc.zip" | sha256sum -c -
+          unzip -q /tmp/kotlinc.zip -d "$HOME"
+          echo "$HOME/kotlinc/bin" >> "$GITHUB_PATH"
+
+      - name: Create the GitHub Release (REST API), read back
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.checks.outputs.version }}
+        run: kotlin scripts/github-release.main.kts release "v${VERSION}" "${GITHUB_SHA}"
+
+  publish:
+    name: Publish to Maven Central — last
+    needs: [checks, release]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      VERSION: ${{ needs.checks.outputs.version }}
+    steps:
+      - name: Clone the checked commit (no token)
+        run: |
+          set -euo pipefail
+          git init -q . && git remote add origin "https://github.com/${GITHUB_REPOSITORY}.git"
+          git fetch -q --depth=1 origin "${GITHUB_SHA}" && git checkout -q FETCH_HEAD
+          test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
+          at="$(git ls-remote origin "refs/tags/v${VERSION}^{}" | cut -f1)"
+          [ -n "${at}" ] || at="$(git ls-remote origin "refs/tags/v${VERSION}" | cut -f1)"
+          test "${at}" = "${GITHUB_SHA}" || { echo "❌ tag v${VERSION} is at '${at}', not ${GITHUB_SHA}"; exit 1; }
+
+      # Re-run safe: a version Central already serves is never uploaded again.
+      - name: Does Maven Central already serve this version?
+        id: served
+        run: |
+          code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 30 \
+            "https://repo1.maven.org/maven2/${MAVEN_PATH}/${VERSION}/universal-wasm-loader-jvm-${VERSION}.pom")"
+          echo "POM HTTP ${code}"
+          case "${code}" in
+            200) echo "served=true"  >> "$GITHUB_OUTPUT" ;;
+            404) echo "served=false" >> "$GITHUB_OUTPUT" ;;
+            *)   echo "❌ repo1 answered ${code}; cannot tell"; exit 1 ;;
+          esac
+
+      - name: Install JDK 25.0.5+8 (Temurin, pinned)
+        if: steps.served.outputs.served == 'false'
+        run: |
+          set -euo pipefail
+          curl -fsSL --retry 4 --retry-all-errors "${JDK_URL}" -o /tmp/jdk.tar.gz
+          echo "${JDK_SHA256}  /tmp/jdk.tar.gz" | sha256sum -c -
+          mkdir -p "$HOME/jdk" && tar -xzf /tmp/jdk.tar.gz -C "$HOME/jdk" --strip-components=1
+          echo "JAVA_HOME=$HOME/jdk" >> "$GITHUB_ENV"
+          echo "$HOME/jdk/bin"       >> "$GITHUB_PATH"
+
+      # The only step that sees the secrets. Tests ran in `checks`; skipping them here keeps the
+      # test suite (and its dependencies) away from the signing key.
+      - name: Publish (signed) to Maven Central
+        if: steps.served.outputs.served == 'false'
+        env:
+          ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+          ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.GPG_PRIVATE_KEY }}
+          ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.GPG_PASSPHRASE }}
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon -x test publishAllPublicationsToMavenCentralRepository
+
+      # FATAL read-back (U8): a green upload is not proof. Central syncs to repo1 in minutes
+      # (0.4.0: ~10 min, 0.4.2: under 5); poll up to 60 min.
+      - name: Read back from Maven Central (POM, jar, .asc, sources) — fatal
+        run: |
+          set -euo pipefail
+          base="https://repo1.maven.org/maven2/${MAVEN_PATH}/${VERSION}/universal-wasm-loader-jvm-${VERSION}"
+          for i in $(seq 1 120); do
+            all=yes
+            for f in .pom .jar .jar.asc -sources.jar; do
+              code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 30 "${base}${f}" || echo 000)"
+              [ "${code}" = "200" ] || all=no
+            done
+            if [ "${all}" = "yes" ]; then echo "✓ repo1 serves POM, jar, .asc and sources for ${VERSION}"; break; fi
+            [ "${i}" = "120" ] && { echo "❌ ${VERSION} not on repo1 after 60 min"; exit 1; }
+            sleep 30
+          done
+          curl -fsSL --max-time 60 "${base}.jar" -o /tmp/a.jar
+          curl -fsSL --max-time 60 "${base}.jar.asc" -o /tmp/a.jar.asc
+
+      - name: Verify the jar's signature against the pinned key — fatal
+        run: |
+          set -euo pipefail
+          export GNUPGHOME="$(mktemp -d)"
+          for i in 1 2 3 4; do
+            gpg --batch --keyserver hkps://keyserver.ubuntu.com --recv-keys "${SIGNING_KEY_FPR}" && break
+            [ "${i}" = "4" ] && { echo "❌ could not fetch the signing key"; exit 1; }
+            sleep $((i * 10))
+          done
+          gpg --batch --status-fd 1 --verify /tmp/a.jar.asc /tmp/a.jar > /tmp/gpg.status 2>/dev/null || true
+          grep -Eq "^\[GNUPG:\] VALIDSIG .* ${SIGNING_KEY_FPR}\$" /tmp/gpg.status \
+            || { echo "❌ the jar's signature does not verify against ${SIGNING_KEY_FPR}"; cat /tmp/gpg.status; exit 1; }
+          echo "✓ the ${VERSION} jar's signature verifies against ${SIGNING_KEY_FPR}"
