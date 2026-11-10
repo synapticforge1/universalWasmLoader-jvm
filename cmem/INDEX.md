@@ -37,8 +37,9 @@ workspace floor (`../../../cmem/`) applies underneath; this repo's files govern 
 | File | What it holds |
 | --- | --- |
 | [open-work.md](open-work.md) | The status line and the ONE list of open items: owner calls, backlog, ledger answers pending |
-| [overview.md](overview.md) | What the port is and why: runtime, coordinates (🔒 groupId stays), design principles, API (HTTP errors, time limit, cancellation), ABI and typed raw mode, SPEC 4.0.0 (refusals, strict WIT), SPEC §10, tests and fixtures, build / release / automatic publishing, credentials, release history |
-| [working-rules.md](working-rules.md) | How an increment is done here: ledger first, git, the gate, `.main.kts` scripts, the privacy rule and its path test |
+| [overview.md](overview.md) | What the port is and why: runtime, coordinates (🔒 groupId stays), design principles, API (HTTP errors, time limit, cancellation), ABI and typed raw mode, SPEC 4.0.0 (refusals, strict WIT), SPEC §10, tests and fixtures, build / publishing plugin / credentials (the release history moved to release.md) |
+| [release.md](release.md) | 🔒 How a release runs (bump → push `main` → CI checks, tags, page, publishes; workspace H33) and the **Release History**, newest first, a summary per version |
+| [working-rules.md](working-rules.md) | How an increment is done here: ledger first, git (the version line arms a release), the gate, `.main.kts` scripts, the privacy rule and its path test, the owner's three words (H34) |
 | [compat-gate.md](compat-gate.md) | The SemVer compatibility gate: API snapshot, floor, previous-tag tests, Breaking row; the `bump.sh` port proof; the inversion; traps |
 | [history-map-2026-11-08.md](history-map-2026-11-08.md) | The H19 history purge (`.gradle/` / `build/` removed from every commit): how it was verified, and every pre-purge → post-purge commit id |
 | [best-practices.md](best-practices.md) | This repo's own rules (§ L) and the workspace's 28 ★ rules, copied verbatim under a dated stamp |

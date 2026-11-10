@@ -2,16 +2,14 @@
 
 Only open items; each points at its record. The status line lives here and nowhere else.
 
-**Status (2026-11-09):** **0.4.2 released and live** (owner: "update the project memory files,
-commit, push and release"): tag `v0.4.2` = `598d321`. It is a patch carrying the H32-ordered
-release script (`8ae7f61`), with no library change (gate: floor patch; v0.4.1's tests GREEN, 62
-run). Publish run 42668202944 was green in all three jobs. GitHub Release `v0.4.2` was made by
-`github-actions[bot]` with the Maven Central link on top (measured). Maven Central:
-`<latest>0.4.2</latest>`, and the POM, jar, `.asc` and sources jar answer 200 (read minutes after
-the run). The README install snippets name 0.4.2. History purged (H19) on 2026-11-08:
-every commit id after the root changed, see [history-map-2026-11-08.md](history-map-2026-11-08.md).
-Gate: 62 / 62 tests. Every release, its contents and run: [overview.md](overview.md) § Release
-history.
+**Status (2026-11-10):** **releasing 0.4.3** (owner: "release", level patch). Latest live:
+**0.4.2** (tag `v0.4.2` = `598d321`; Maven Central `<latest>0.4.2</latest>`). The release process
+was converged to the workspace's H33 shape (branch `h33-release-process`, merged into `main` for
+this release): `bump` takes a required level and commits itself; `./gradlew release` pushes `main`
+only; CI checks, tags, makes the page and publishes ([release.md](release.md)). The local half was
+rehearsed end to end against a scratch origin; 0.4.3 is the first release through it. Gate: 62 / 62 tests. History purged (H19) on
+2026-11-08 (every id after the root changed; [history-map-2026-11-08.md](history-map-2026-11-08.md)).
+Every release, its summary and run: [release.md](release.md) § Release History.
 
 ## Owner actions (🗓️)
 
@@ -20,16 +18,24 @@ history.
 
 ## Backlog
 
-
+- 🟡 **The H33 release workflow is UNMEASURED on GitHub.** At the first push of `main`, read the
+  run: `checks` green, then `tag` / `release` / `publish` SKIPPED (the version is already tagged).
+  At the next release, read: the tag CI made (annotated, peels to the bump commit, by
+  `github-actions[bot]`), the page from it, the Central read-back and the signature step green.
+  Rehearsed so far: the local half end to end (scratch origin), the REST `tag` / `release`
+  commands as read-only dry runs on the real API, 29 self-test checks ([release.md](release.md)).
+- 🟡 **U10 as a user** is done by hand after a release (resolve the version from Central in a
+  scratch project, load a fixture); no script yet. The workspace card did not ask for one.
 - 🟡 **README third-party note** (optional, 2026-10-26 licence check): name the Gradle wrapper's
   Apache-2.0 licence and record where `math.wasm` came from (added in `09bf5c0`, provenance not
   recorded; almost certainly the owner's wasmtk). The repo complies without it.
-- 🟡 **A stranded upload (C34 (1), by analogy; reasoned, not measured).**
-  `publishAllPublicationsToMavenCentralRepository` uploads, then Central validates and releases. A
-  failure after the upload leaves the version on Central with the job red. The release branch and
-  the GitHub Release are then skipped, and Central refuses the same version on a re-run, so only a
-  manual bookkeeping step recovers. Central, like npm, never reuses a version number. C34 (2)–(4)
-  are JSR / npm / Deno only: n/a.
+- 🟡 **A stranded upload (C34 (1), by analogy) — mostly addressed 2026-11-10, unmeasured.** The
+  page is now made BEFORE the publish (owner's order), and the publish job skips the upload when
+  `repo1` already serves the version. So "Re-run failed jobs" after a failure that follows the
+  upload goes straight to the read-back. Still open: an upload that Central holds but has not
+  synced yet, and that a re-run therefore cannot see, would be uploaded again (Central refuses a
+  duplicate); the 60-min read-back poll makes that window small. C34 (2)–(4) are JSR / npm / Deno
+  only: n/a.
 
 Closed 2026-11-08 by SPEC 4.0.0 (formerly here): the `.wit` fallback that masked server errors
 (the owner decided: only absent is raw); the body that stalls after the headers (now within the
@@ -37,8 +43,9 @@ limit, tested); the WIT call path's linear export lookup (now a map).
 
 ## Workspace ledger
 
-Rows in `../../../cmem/workspace-correspondence.md` naming this repo. **Answered 2026-11-09
-(later):** H32 / C41: release pages are already made by CI here (first new page `v0.4.1` by
+Rows in `../../../cmem/workspace-correspondence.md` naming this repo. **Answered 2026-11-10:**
+H33 (the release process, slot by slot), C45 (no `release/<tag>` branch), H34 (the owner's three
+words, committed as found). **Answered 2026-11-09 (later):** H32 / C41: release pages are already made by CI here (first new page `v0.4.1` by
 `github-actions[bot]`); the order was confirmed against the recipe and fixed to match it
 (`8ae7f61`). SPEC 4.0.1 (C35's port allowance) needs no change here.
 **Answered 2026-11-09:** H30

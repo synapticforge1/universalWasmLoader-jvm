@@ -31,7 +31,8 @@ State and open items: [`cmem/open-work.md`](cmem/open-work.md).
   floor). A public API change re-baselines first, alone: `./gradlew updateLegacyAbi`.
 - **Committed scripts are Kotlin `.main.kts`**; no shell scripts, no heredocs — content via `Write`/`Edit`.
 - **Fixtures are the stamped set from universalWasmLoader-js** — never edit or regenerate them here.
-- **Nothing is pushed, tagged or published unless the owner says so** (`./gradlew release` publishes).
+- **Nothing is pushed, tagged or published unless the owner says so.** `./gradlew release` pushes
+  `main`, and a pushed untagged version line is released by CI ([`cmem/release.md`](cmem/release.md)).
 - **No secrets, no personal information, no machine-specific paths** in anything committed
   ([`cmem/working-rules.md`](cmem/working-rules.md)).
 - Exports are looked up by **camelCase** (`is-positive` → `isPositive`), never kebab or snake.

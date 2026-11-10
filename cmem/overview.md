@@ -183,7 +183,7 @@ off; return check off; unknown type → `s32`; export check off; unreadable `.wi
 (`SPEC.md v3.0.0 → v4.0.0` + 8 added members). v0.3.0's tests do not compile against the new code
 (they call the removed internals `HTTP_RESPONSE_TIMEOUT` / `loadFromUrl(responseTimeout=)`), and a
 major floor does not require them. **Released as 0.4.0** (pre-1.0 Rule 6 minor; 🔒 owner: "yes
-release 0.4.0"), § Release history. Post-purge ids: surface `c1c6160`, behaviour `8b0db4f`, merge
+release 0.4.0"), [release.md](release.md) § Release History. Post-purge ids: surface `c1c6160`, behaviour `8b0db4f`, merge
 `a8bade1`.
 
 ## SPEC §10 — producer model (2026-07-05, `1e1ecb8`)
@@ -215,11 +215,15 @@ refusals added 22, § SPEC 4.0.0).
 ## Build and release
 
 - **Version source of truth:** the `version = "X.Y.Z"` line in `build.gradle.kts`; nothing else holds it.
-- **Bump through the gate:** `./gradlew bump [-Pkind=minor|major]` → `kotlin scripts/compat.main.kts
-  bump <kind>`; it refuses a bump below the floor ([compat-gate.md](compat-gate.md)).
-- **Release (owner action):** commit the bump, `./gradlew release` (tags `v<version>`, force-pushes the
-  tag) → `publish.yml`, **three jobs since 2026-11-08** (workspace C30; 🔒 owner: "yes use the
-  C30 split workflow"):
+- **How a release runs now (since 2026-11-10, workspace H33): [release.md](release.md)** — `bump`
+  (level required, commits itself) → `./gradlew release` pushes `main` only → CI checks, tags,
+  makes the page, publishes. **The history below is the 2026-11-08 → 11-09 shape** (tag pushed by
+  hand, three jobs), kept as the record of how 0.4.0–0.4.2 were released.
+- **Bump through the gate:** `./gradlew bump -Pkind=…` → `kotlin scripts/compat.main.kts bump <kind>`;
+  it refuses a bump below the floor ([compat-gate.md](compat-gate.md)).
+- **Release, 2026-11-08 → 11-09 (superseded by [release.md](release.md)):** commit the bump,
+  `./gradlew release` (tagged `v<version>`, force-pushed the tag) → `publish.yml`, three jobs
+  (workspace C30; 🔒 owner: "yes use the C30 split workflow"):
   `checks` {contents: read}: tokenless clone of the tag, required at `github.sha` → pinned JDK
   25.0.5+8 + Kotlin 2.2.0 (version + sha256) → `./gradlew check` → compat `selftest` + `release`.
   `publish` {contents: read}: fresh runner, tokenless clone, refuses unless the tag is still
@@ -294,25 +298,11 @@ refusals added 22, § SPEC 4.0.0).
   `keys.openpgp.org`. The private half lives only in the secrets.
 - Namespace: `io.github.jrmarcum`, verified on the Central Portal via the `jrmarcum` GitHub account.
 
-## Release history (Maven Central `io.github.jrmarcum:universal-wasm-loader-jvm`)
+## Release history
 
-Commit ids in this table are POST-purge (H19, 2026-11-08); the pre-purge ids cited elsewhere are in
-[history-map-2026-11-08.md](history-map-2026-11-08.md).
-
-| Version | Tag → commit | What it carried | How it was published | On `repo1` (read 2026-11-08) |
-| --- | --- | --- | --- | --- |
-| 0.1.0, 0.1.1 | `322e1d9`, `da2777a` | early builds (2026-05-20) | never reached Central | absent |
-| 0.1.2 | `19a3757` | first Central release; SPEC 3.0.0 string returns (`86e755b`) | 2026-06-24 by a `workflow_dispatch` on `main` (`e8c12ff`, run 28141421397), manual Publish click | live |
-| 0.2.0 | `ef3846b` | SPEC §10 (`47c7813`; `_initialize` Breaking row); workspace conformance (`01ef84f`) | run 40406408422 (first from the org, first through the gate); Publish clicked by the owner | live |
-| 0.2.1 | `5ce187e` | `wasmImport` reports a `.wasm` HTTP error (`01a07ae`); plugin 0.37.0, no deprecation; automatic publishing | run 40408929155, published itself | live |
-| 0.3.0 | `cf53474` | raw mode typed by the wasm signature (`d2db3ec`); `wasmImport` timeouts 10 s / 30 s (`fe91d4b`); two Breaking rows | run 40411608731, published itself | live (`<latest>`) |
-| 0.4.0 | `264e6f3` | **SPEC 4.0.0** (`c1c6160` surface + `8b0db4f` behaviour, merge `a8bade1`); the C30 three-job workflow (`ec7398c`, merge `5e6c48d`); first release after the H19 purge | run 42512825706 (🔒 owner: "yes release 0.4.0"), the first run of the split workflow: `checks` / `publish` / `release` all green; published itself; GitHub Release + `release/v0.4.0` = `264e6f3` | live (read 2026-11-08; `lastUpdated` 20261108191302) |
-| 0.4.1 | `f08fb7e` | patch, no library change: the H30 release job (`bf7737b`, merge `3aa60e2`); gate floor patch, v0.4.0's 62 tests green | run 42640047554 (🔒 owner: "… push then release"), all three jobs green. **First run of the REST release job, measured:** `scripts/github-release.main.kts` created GitHub Release `v0.4.1` (`github-actions[bot]`, 15:02:04Z, not a draft, generated notes `v0.4.0...v0.4.1`) and `release/v0.4.1` = `f08fb7e`. The tag did not move (`ls-remote`) | live (read 2026-11-09) |
-| 0.4.2 | `598d321` | patch, no library change: the H32-ordered release script (`8ae7f61`: page check before the branch, a time limit to the last byte, the Maven link); gate floor patch, v0.4.1's 62 tests green | run 42668202944 (🔒 owner: "… push and release"), all three jobs green. **H32 order measured:** GitHub Release `v0.4.2` by `github-actions[bot]` (17:51:50Z, not a draft), the Maven Central link on top of the generated notes `v0.4.1...v0.4.2`; `release/v0.4.2` = `598d321`; the tag did not move (`ls-remote`) | live (`<latest>0.4.2</latest>`, POM / jar / `.asc` / sources 200, minutes after the run) |
-
-Every release from 0.2.0 on went through the compatibility gate locally (`bump`) and on the runner
-(`release`). Through 0.3.0 the previous tag's tests were green against the new library; for 0.4.0
-the floor was major, so they were not required (they do not compile against it).
+**Moved to [release.md](release.md) § Release History** (newest first, a summary per version) on
+2026-11-10 (workspace H33, owner decision D3: one place per project). The table that stood here:
+`git show 3d1e2f9:cmem/overview.md`.
 
 ## Development notes
 

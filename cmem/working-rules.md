@@ -19,8 +19,12 @@ H22, H28).
   own; adopted 2026-10-26). Docs and memory land in the same commit as the code they describe.
 - **Commit messages go through a file**: `git commit -F <file>`, the file written with `Write`. Never a
   heredoc, never a double-quoted `-m`.
-- **Nothing is pushed, tagged or published unless the owner says so.** `./gradlew release` tags AND
-  force-pushes the tag, which publishes: it is an owner action.
+- **Nothing is pushed, tagged or published unless the owner says so.** Since 2026-11-10 (workspace
+  H33) nothing is tagged from this machine: `./gradlew release` pushes `main` only, and CI checks,
+  tags, makes the page and publishes ([release.md](release.md)). ⚠️ **The version line in
+  `build.gradle.kts` ARMS a release**: any push of `main` that carries a version with no tag yet
+  is released by CI. So the version line moves only through `bump`, as the last commit before
+  `./gradlew release`.
 - **The version line in `build.gradle.kts` stays at the released version** until a gated bump
   (`./gradlew bump`); never bump in the change that merges.
 
@@ -99,3 +103,22 @@ H22, H28).
   after the root changed. Record and old → new map: [history-map-2026-11-08.md](history-map-2026-11-08.md).
   **Scan every commit, not the tips:** `git grep -a … $(git rev-list --all)`. The commit address is
   allowed.
+
+## Owner commands: "commit", "push", "release" (owner, 2026-11-10)
+
+🔒 Written into every project by the workspace session on the owner's direction (2026-11-10:
+"please write that into each project"; workspace `cmem/working-rules.md` Tooling rule 12, letter
+H34). When the owner says:
+
+- **"commit"** — first run "update the project memory files" (re-derive this repo's `cmem/` from
+  its current state), then commit to the branch being worked on. Nothing is pushed.
+- **"push"** — perform "commit", then merge the branch into `main`, then push `main` (and the
+  working branch) to GitHub (`origin`) and read it back with `git ls-remote`.
+- **"release"** — perform "push", then the release process: the workspace's
+  `cmem/release-process.md` §§ 5–8 — CI checks first, then CI pushes the tag, then the GitHub
+  Release page from the tag, then the publish to the registry — recorded in `cmem/release.md`
+  § "Release History" (newest first, a summary of what changed). The level (patch / minor /
+  major) is the owner's: ask if it was not given.
+
+Each command includes the one before it, and none goes further than its own word (a "commit"
+never pushes, a "push" never releases). This repo's own gate and merge rules apply at each step.

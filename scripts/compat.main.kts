@@ -3,13 +3,17 @@
 // compat.main.kts — the SemVer compatibility gate and the version bump (workspace letter H6;
 // replaces scripts/bump.sh, workspace letter H15). Design and proof: cmem/compat-gate.md.
 //
-//   kotlin scripts/compat.main.kts bump [patch|minor|major]   raise the version, refusing below the floor
+//   kotlin scripts/compat.main.kts bump patch|minor|major     raise the version (clean tree only; refuses
+//                                                             below the floor) and commit "bump to vX.Y.Z"
 //   kotlin scripts/compat.main.kts report                     the floor and the previous-tag tests, nothing written
-//   kotlin scripts/compat.main.kts release                    CI, on the tag: the version agrees with the gate
+//   kotlin scripts/compat.main.kts release                    CI `checks`: this version against the previous tag
+//   kotlin scripts/compat.main.kts version                    print the version line (CI: "is this a release?")
 //   kotlin scripts/compat.main.kts selftest                   pure checks of the gate's logic (no git, no build)
 //
-// `./gradlew bump [-Pkind=...]` runs `bump`. build.gradle.kts is the only place the version lives.
-// After a bump:  commit, then `./gradlew release` (tags v<version>, pushes the tag → CI publishes).
+// `./gradlew bump -Pkind=...` runs `bump` (the level is required: workspace H33 U1).
+// build.gradle.kts is the only place the version lives. After a bump: `./gradlew release` runs
+// scripts/release.main.kts, which pushes `main` only; CI then checks, tags, makes the page and
+// publishes (cmem/release.md § How a release runs).
 //
 // Output contract kept from bump.sh: the success line on stdout and the ❌ messages on stderr are
 // byte-identical; gate diagnostics go to stderr.
@@ -265,13 +269,27 @@ fun computeFloor(tag: String): Floor =
 // Commands
 // ---------------------------------------------------------------------------------------------
 
-fun cmdBump(kindArg: String) {
+/** U3: nothing uncommitted, untracked files included — the bump commit must hold only the bump. */
+fun requireCleanTree(what: String) {
+    val s = git("status", "--porcelain", "--untracked-files=all")
+    if (s.exit != 0) fail("❌ $what: `git status` failed (exit ${s.exit})")
+    val dirty = s.out.lines().filter { it.isNotBlank() }
+    if (dirty.isNotEmpty()) {
+        fail("❌ $what: the working tree is not clean (${dirty.size} entr${if (dirty.size == 1) "y" else "ies"}, untracked included):\n" +
+            dirty.take(10).joinToString("\n") { "  $it" })
+    }
+}
+
+fun cmdBump(kindArg: String?) {
+    // U1 (workspace H33): the level is the owner's ARGUMENT; there is no default.
     val kind = when (kindArg) {
         "patch" -> Level.PATCH
         "minor" -> Level.MINOR
         "major" -> Level.MAJOR
+        null -> fail("❌ bump: the release level is required — bump patch | minor | major (no default)")
         else -> fail("❌ bump: unknown release kind \"$kindArg\" — use patch | minor | major")
     }
+    requireCleanTree("bump")
     val current = readVersion()
     val tag = lastTag() ?: fail("❌ compat: no v* tag to compare against")
     requireFreshSurface()
@@ -289,8 +307,21 @@ fun cmdBump(kindArg: String) {
     writeVersion(to)
     val text = readme.readText()
     if (hasBreakingRow(text, NEXT_RELEASE)) readme.writeText(text.replace("| $NEXT_RELEASE |", "| $to |"))
-    println("✅ build.gradle.kts → $to  (${kindArg} bump from $current)")
+    // U2: the bump is its own commit, made by the tooling. The message goes through a file.
+    val msg = Files.createTempFile("uwl-jvm-bump-", ".txt").toFile()
+    try {
+        msg.writeText("bump to v$to\n\n$kindArg through the compatibility gate: floor ${floor.level.name.lowercase()} against $tag.\n")
+        val add = git("add", "build.gradle.kts", "README.md")
+        val commit = if (add.exit == 0) git("commit", "-q", "-F", msg.path) else add
+        if (commit.exit != 0) fail("❌ bump: wrote $to but could not commit it (exit ${commit.exit}):\n${commit.out}")
+    } finally {
+        msg.delete()
+    }
+    println("✅ build.gradle.kts → $to  ($kindArg bump from $current), committed as \"bump to v$to\"")
 }
+
+/** The version line, for CI ("is this a release?": the tag v<version> does not exist yet). */
+fun cmdVersion() = println(readVersion())
 
 fun cmdReport() {
     val tag = lastTag() ?: fail("❌ compat: no v* tag to compare against")
@@ -376,10 +407,11 @@ fun cmdSelftest() {
     println("compat selftest: $n checks passed")
 }
 
-when (args.firstOrNull() ?: "bump") {
-    "bump" -> cmdBump(args.getOrElse(1) { "patch" })
+when (args.firstOrNull()) {
+    "bump" -> cmdBump(args.getOrNull(1))
     "report" -> cmdReport()
     "release" -> cmdRelease()
+    "version" -> cmdVersion()
     "selftest" -> cmdSelftest()
-    else -> fail("usage: kotlin scripts/compat.main.kts bump [patch|minor|major] | report | release | selftest")
+    else -> fail("usage: kotlin scripts/compat.main.kts bump patch|minor|major | report | release | version | selftest")
 }

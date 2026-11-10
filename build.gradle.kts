@@ -66,49 +66,46 @@ tasks.named("check") {
     dependsOn("checkLegacyAbi")
 }
 
-// Raises the project version in THIS file (the single source of truth), through the
-// compatibility gate: it refuses a bump below the floor (cmem/compat-gate.md). Usage:
-//   ./gradlew bump                 # patch:  0.1.2 -> 0.1.3  (default)
-//   ./gradlew bump -Pkind=minor    # minor:  0.1.2 -> 0.2.0
-//   ./gradlew bump -Pkind=major    # major:  0.1.2 -> 1.0.0
-// Delegates to scripts/compat.main.kts so there is one bump implementation.
+// Release tooling (workspace H33, cmem/release.md § How a release runs). Both tasks delegate to
+// the Kotlin scripts, so there is one implementation of each:
+//   ./gradlew bump -Pkind=patch|minor|major   the level is REQUIRED (no default); clean tree only;
+//                                             refuses a level below the compatibility floor; commits
+//                                             "bump to vX.Y.Z" (scripts/compat.main.kts)
+//   ./gradlew release [-PdryRun]              guards, then pushes `main` ONLY and reads it back; NO tag
+//                                             is made here — CI checks, tags, makes the page and
+//                                             publishes (scripts/release.main.kts)
+fun runKotlinScript(script: String, vararg args: String): Int {
+    val path = file(script).absolutePath
+    // `kotlin` is a .cmd/.bat launcher on Windows, so it goes through cmd there.
+    val cmd = if (System.getProperty("os.name").lowercase().contains("win")) {
+        listOf("cmd", "/c", "kotlin", path) + args
+    } else {
+        listOf("kotlin", path) + args
+    }
+    return ProcessBuilder(cmd).directory(projectDir).inheritIO().start().waitFor()
+}
+
 tasks.register("bump") {
     group = "versioning"
-    description = "Raises the version in build.gradle.kts (patch|minor|major; patch default), gated."
+    description = "Raises and commits the version (-Pkind=patch|minor|major, required), gated."
     doLast {
-        val kind = (project.findProperty("kind") as String?) ?: "patch"
+        val kind = project.findProperty("kind") as String?
+            ?: throw GradleException("bump: the level is required — ./gradlew bump -Pkind=patch|minor|major (no default)")
         require(kind in listOf("patch", "minor", "major")) {
             "bump: unknown kind '$kind' — use -Pkind=patch|minor|major"
         }
-        val script = file("scripts/compat.main.kts").absolutePath
-        // `kotlin` is a .cmd/.bat launcher on Windows, so it goes through cmd there.
-        val cmd = if (System.getProperty("os.name").lowercase().contains("win")) {
-            listOf("cmd", "/c", "kotlin", script, "bump", kind)
-        } else {
-            listOf("kotlin", script, "bump", kind)
-        }
-        val exit = ProcessBuilder(cmd)
-            .directory(projectDir)
-            .inheritIO()
-            .start()
-            .waitFor()
+        val exit = runKotlinScript("scripts/compat.main.kts", "bump", kind)
         check(exit == 0) { "compat.main.kts bump failed (exit $exit)" }
     }
 }
 
 tasks.register("release") {
     group = "publishing"
-    description = "Tags HEAD as v<version> and pushes the tag to origin to trigger CI publish."
+    description = "Guards, then pushes main only (no tag); CI checks, tags, makes the page, publishes."
     doLast {
-        val tag = "v$version"
-        for (cmd in listOf(
-            listOf("git", "tag", "-f", tag),
-            listOf("git", "push", "origin", "-f", "refs/tags/$tag")
-        )) {
-            val exit = ProcessBuilder(cmd).inheritIO().start().waitFor()
-            check(exit == 0) { "'${cmd.joinToString(" ")}' failed (exit $exit)" }
-        }
-        println("Pushed $tag — CI publish workflow triggered.")
+        val args = if (project.hasProperty("dryRun")) arrayOf("--dry-run") else emptyArray()
+        val exit = runKotlinScript("scripts/release.main.kts", *args)
+        check(exit == 0) { "release.main.kts failed (exit $exit)" }
     }
 }
 

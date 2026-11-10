@@ -10,7 +10,7 @@ One file: `scripts/compat.main.kts` (Kotlin script; workspace Tooling rule 1).
 | Rule | File | Runs in |
 | --- | --- | --- |
 | 1, the SURFACE | `api/universal-wasm-loader-jvm.api` (committed), from KGP 2.2's ABI validation | `checkLegacyAbi` inside `./gradlew check` (local + CI); `updateLegacyAbi` re-baselines |
-| 2, the FLOOR | `compat.main.kts` `floorOf` | `bump` (refuses below it), `report`, `release` (CI on the tag, blocking, before publish) |
+| 2, the FLOOR | `compat.main.kts` `floorOf` | `bump` (refuses below it), `report`, `release` (CI `checks` on the pushed `main` commit, before the tag exists — since 2026-11-10; on the tag before that) |
 | 3, BEHAVIOUR | `compat.main.kts` `previousTests` | same places; required green unless the floor is major |
 | 4, deprecate first | README `### ⚠️ Breaking Changes` | a major floor needs a `\| _next release_ \|` row; `bump` stamps the version into it; `release` needs the version's row |
 | 5, re-baseline alone | the STALE refusal | an intended API change runs `updateLegacyAbi` in its own commit, with the reason |
@@ -52,6 +52,11 @@ release compares against `v0.4.0`, whose tests are the SPEC 4.0.0 suite. ⚠️ 
 `internal` members bind the next release's Rule 3 to those internals.
 
 **Consumers (Rule 3, second half):** no known Maven artifact depends on this one; nothing to run.
+
+**`bump` since 2026-11-10 (workspace H33 U1–U3):** the level is a required argument (`bump` with
+none is refused, and so is `./gradlew bump` without `-Pkind`); a dirty tree, untracked files
+included, is refused before anything runs; on success it commits `bump to vX.Y.Z` (the message
+through a file). The rehearsal in a scratch clone is recorded in [release.md](release.md).
 
 ## The port of `scripts/bump.sh` (workspace H15), proved 2026-10-26
 

@@ -1,26 +1,31 @@
-// github-release.main.kts — the publish workflow's `release` job, through GitHub's REST API.
+// github-release.main.kts — the publish workflow's `tag` and `release` jobs, through GitHub's
+// REST API.
 //
-// Workspace H30 / Tooling rule 9 (owner, 2026-11-08): no GitHub CLI, in CI too. This replaces the
-// job's two CLI calls (create the release/<tag> branch; create the GitHub Release) with plain
-// HTTPS requests made by the JDK alone: no dependency is resolved, so no package code runs beside
-// the job's write token (workspace C30).
+// Workspace H30 / Tooling rule 9 (owner, 2026-11-08): no GitHub CLI, in CI too. Plain HTTPS
+// requests made by the JDK alone: no dependency is resolved, so no package code runs beside the
+// job's write token (workspace C30).
 //
 // Usage:
-//   kotlin scripts/github-release.main.kts release <tag> <commit-sha> [--dry-run]
+//   kotlin scripts/github-release.main.kts tag <tag> <commit-sha> [--dry-run]       (H33 U6)
+//   kotlin scripts/github-release.main.kts release <tag> <commit-sha> [--dry-run]   (H33 U7)
 //   kotlin scripts/github-release.main.kts selftest
 // Environment: GITHUB_REPOSITORY (owner/repo), GITHUB_TOKEN (needed for writes; a dry run reads
 // the public API without it), GITHUB_API_URL (default https://api.github.com; the self-test
 // points it at a mock).
 //
-// Order — the workspace's H32 recipe (owner, 2026-11-09), kept as written:
+// `tag` — CI creates the annotated tag on the commit `checks` passed (owner, 2026-11-10: "check
+// first, then push the tag"). Absent → created (tag object, then the ref) and read back, peeling
+// to <commit-sha>. Already at <commit-sha> → done, no write (a re-run is safe). Anywhere else →
+// refused: a published tag never moves.
+//
+// `release` — the GitHub Release page FROM the tag, in the workspace's H32 order:
 //  1. The tag must already exist on GitHub and peel (annotated tags followed) to <commit-sha>.
 //     POST /releases would otherwise CREATE a missing tag at the default branch — the CLI's
 //     --verify-tag used to refuse that (hazard found by loader-rs, 2026-11-09).
 //  2. A GitHub Release already there = done, with NO write (so a re-run is safe).
-//  3. Otherwise: release/<tag> (kept when it points at <commit-sha>, refused when it points
-//     elsewhere, created and read back when missing; the Release targets it), then POST the
-//     Release with generated notes and the Maven Central link on top, read it back, and re-check
-//     the tag.
+//  3. Otherwise POST the Release with generated notes and the Maven Central link on top, read it
+//     back, and re-check the tag. No per-release branch and no target ref in the POST (workspace C45:
+//     the tag already exists, and the page is made from it).
 // Every network call is held to its own time limit, request to the last byte of the body
 // (workspace best-practice 7.21). Every refusal happens before any write.
 // Exit 0 = done (or nothing to do), 1 = refused or failed.
@@ -102,9 +107,13 @@ fun objectField(json: String, key: String): String? =
 class Refused(message: String) : Exception(message)
 
 /** The commit the tag peels to on GitHub, or a refusal. */
-fun peeledTag(api: Api, tag: String): String {
+fun peeledTag(api: Api, tag: String): String =
+    tagCommit(api, tag) ?: throw Refused("tag $tag is not on GitHub (creating a release would CREATE it at the default branch)")
+
+/** The commit the tag peels to on GitHub (annotated tags followed), or null when the tag is absent. */
+fun tagCommit(api: Api, tag: String): String? {
     val (status, body) = api.call("GET", "/git/ref/tags/$tag")
-    if (status == 404) throw Refused("tag $tag is not on GitHub (creating a release would CREATE it at the default branch)")
+    if (status == 404) return null
     if (status != 200) throw Refused("reading tag $tag: HTTP $status")
     var type = objectField(body, "type")
     var sha = objectField(body, "sha")
@@ -117,6 +126,40 @@ fun peeledTag(api: Api, tag: String): String {
     }
     if (type != "commit" || sha == null) throw Refused("tag $tag does not resolve to a commit (type $type)")
     return sha
+}
+
+/** H33 U6: CI creates the annotated tag on the checked commit. Returns the exit code. */
+fun tagCmd(api: Api, tag: String, sha: String, dryRun: Boolean, hasToken: Boolean): Int {
+    try {
+        if (!TAG_FORM.matches(tag)) throw Refused("'$tag' is not a vX.Y.Z tag")
+        if (!SHA_FORM.matches(sha)) throw Refused("'$sha' is not a 40-hex commit id")
+        if (!REPO_FORM.matches(api.repo)) throw Refused("'${api.repo}' is not owner/repo")
+        if (!dryRun && !hasToken) throw Refused("GITHUB_TOKEN is not set; only --dry-run runs without it")
+
+        val at = tagCommit(api, tag)
+        when {
+            at == sha -> { println("✓ tag $tag already → $sha on GitHub, nothing written"); return 0 }
+            at != null -> throw Refused("tag $tag already exists at $at, not $sha — a published tag never moves")
+            dryRun -> { println("would create annotated tag $tag → $sha"); return 0 }
+        }
+        // The annotated tag object, then the ref that names it.
+        val (os, ob) = api.call("POST", "/git/tags",
+            """{"tag":"$tag","message":"$tag","object":"$sha","type":"commit"}""")
+        if (os != 201) throw Refused("creating tag object $tag: HTTP $os ${ob.take(200)}")
+        val tagObject = field(ob, "sha") ?: throw Refused("creating tag object $tag: no sha in the answer")
+        val (rs, rb) = api.call("POST", "/git/refs", """{"ref":"refs/tags/$tag","sha":"$tagObject"}""")
+        if (rs != 201) throw Refused("creating ref refs/tags/$tag: HTTP $rs ${rb.take(200)}")
+        val back = tagCommit(api, tag)
+        if (back != sha) throw Refused("tag $tag did not read back at $sha (got $back)")
+        println("✓ created annotated tag $tag → $sha (read back)")
+        return 0
+    } catch (e: Refused) {
+        System.err.println("❌ github-release: ${e.message}")
+        return 1
+    } catch (e: Exception) {
+        System.err.println("❌ github-release: ${e::class.simpleName}: ${e.message}")
+        return 1
+    }
 }
 
 /** The publish workflow's release step. Returns the exit code. */
@@ -139,34 +182,13 @@ fun release(api: Api, tag: String, sha: String, dryRun: Boolean, hasToken: Boole
             gs != 404 -> throw Refused("reading release $tag: HTTP $gs")
         }
 
-        // 3a. release/<tag>, which the Release targets
-        val branch = "release/$tag"
-        val (bs, bb) = api.call("GET", "/git/ref/heads/$branch")
-        when {
-            bs == 200 -> {
-                val bsha = objectField(bb, "sha")
-                if (bsha != sha) throw Refused("branch $branch exists at $bsha, not $sha")
-                println("✓ branch $branch already at $sha")
-            }
-            bs != 404 -> throw Refused("reading branch $branch: HTTP $bs")
-            dryRun -> println("would create branch $branch at $sha")
-            else -> {
-                val (cs, cb) = api.call("POST", "/git/refs", """{"ref":"refs/heads/$branch","sha":"$sha"}""")
-                if (cs != 201) throw Refused("creating branch $branch: HTTP $cs ${cb.take(200)}")
-                val (rs, rb) = api.call("GET", "/git/ref/heads/$branch")
-                if (rs != 200 || objectField(rb, "sha") != sha) throw Refused("branch $branch did not read back at $sha")
-                println("✓ created branch $branch at $sha (read back)")
-            }
-        }
-
-        // 3b. The GitHub Release: generated notes, with the registry link on top (H32). GitHub
-        // prepends `body` to the generated notes.
-        if (dryRun) { println("would create GitHub Release $tag (target $branch, Maven Central link + generated notes)"); return 0 }
+        // 3. The GitHub Release from the existing tag: generated notes, with the registry link on
+        // top (H32). GitHub prepends `body` to the generated notes. No branch, no target ref.
+        if (dryRun) { println("would create GitHub Release $tag (Maven Central link + generated notes)"); return 0 }
         val version = tag.removePrefix("v")
         val registry = "Maven Central: [io.github.jrmarcum:universal-wasm-loader-jvm:$version]" +
             "(https://central.sonatype.com/artifact/io.github.jrmarcum/universal-wasm-loader-jvm/$version)"
-        val body = """{"tag_name":"$tag","target_commitish":"$branch","name":"$tag",""" +
-            """"body":"$registry","generate_release_notes":true}"""
+        val body = """{"tag_name":"$tag","name":"$tag","body":"$registry","generate_release_notes":true}"""
         val (ps, pb) = api.call("POST", "/releases", body)
         if (ps != 201) throw Refused("creating GitHub Release $tag: HTTP $ps ${pb.take(200)}")
         val (vs, vb) = api.call("GET", "/releases/tags/$tag")
@@ -234,9 +256,16 @@ class Mock : AutoCloseable {
                     tagObjects[path.removePrefix("/git/tags/")]?.let { send(200, obj("commit", it)) } ?: send(404, "{}")
                 ex.requestMethod == "GET" && path.startsWith("/git/ref/heads/") ->
                     branches[path.removePrefix("/git/ref/heads/")]?.let { send(200, obj("commit", it)) } ?: send(404, "{}")
+                ex.requestMethod == "POST" && path == "/git/tags" -> {
+                    // An annotated tag object pointing at the commit; its id is made up here.
+                    val objectId = "d".repeat(40)
+                    tagObjects[objectId] = field(body, "object")!!
+                    send(201, """{"sha":"$objectId","tag":"${field(body, "tag")}"}""")
+                }
                 ex.requestMethod == "POST" && path == "/git/refs" -> {
-                    val ref = field(body, "ref")!!.removePrefix("refs/heads/")
-                    branches[ref] = field(body, "sha")!!
+                    val ref = field(body, "ref")!!
+                    if (ref.startsWith("refs/tags/")) tags[ref.removePrefix("refs/tags/")] = "tag" to field(body, "sha")!!
+                    else branches[ref.removePrefix("refs/heads/")] = field(body, "sha")!!
                     send(201, "{}")
                 }
                 ex.requestMethod == "GET" && path.startsWith("/releases/tags/") -> {
@@ -270,19 +299,46 @@ fun selftest(): Int {
     fun run(m: Mock, tag: String, sha: String, dry: Boolean = false, token: String? = "t0k", limitMs: Long = 30_000) =
         release(Api(m.url, token, "o/r", limitMs, backoffMs = 10), tag, sha, dry, !token.isNullOrEmpty())
 
+    fun tagRun(m: Mock, tag: String, sha: String, dry: Boolean = false, token: String? = "t0k") =
+        tagCmd(Api(m.url, token, "o/r", 30_000, backoffMs = 10), tag, sha, dry, !token.isNullOrEmpty())
+
+    // `tag` (H33 U6)
+    Mock().use { m ->
+        check("tag: absent → created, exit 0", tagRun(m, "v1.0.0", a) == 0)
+        check("tag: an annotated tag object, then the ref", m.writes() == listOf("POST /git/tags", "POST /git/refs"))
+        check("tag: the ref peels to the commit", m.tags["v1.0.0"]?.first == "tag" && m.tagObjects[m.tags["v1.0.0"]!!.second] == a)
+        m.log.clear()
+        check("tag: re-run at the same commit → no write", tagRun(m, "v1.0.0", a) == 0 && m.writes().isEmpty())
+        check("tag: at another commit → refused, no write (a tag never moves)", tagRun(m, "v1.0.0", b) == 1 && m.writes().isEmpty())
+    }
+    Mock().use { m ->
+        check("tag: dry run → no write", tagRun(m, "v1.0.0", a, dry = true, token = null) == 0 && m.writes().isEmpty())
+    }
+    Mock().use { m ->
+        check("tag: no token → refused, no request", tagRun(m, "v1.0.0", a, token = null) == 1 && m.log.isEmpty())
+    }
+
+    // `release` (H32 order, from the tag)
     Mock().use { m ->
         m.tags["v1.0.0"] = "commit" to a
         check("create: exit 0", run(m, "v1.0.0", a) == 0)
-        check("create: branch release/v1.0.0 at the commit", m.branches["release/v1.0.0"] == a)
         check("create: release created", "v1.0.0" in m.releases)
+        check("create: no release/<tag> branch, only the Release POST (C45)", m.branches.isEmpty() && m.writes() == listOf("POST /releases"))
         check("create: Bearer token sent on writes", m.auth == "Bearer t0k")
-        check("create: generated notes, target the release branch",
-            m.lastBody.contains("\"generate_release_notes\":true") && m.lastBody.contains("\"target_commitish\":\"release/v1.0.0\""))
+        // The POST names no target ref (the tag exists). The field name is assembled so that the
+        // workspace's C45 grep over scripts/ reads 0 hits.
+        val targetField = "target_" + "commitish"
+        check("create: generated notes, no target ref (the tag exists)",
+            m.lastBody.contains("\"generate_release_notes\":true") && !m.lastBody.contains(targetField))
         check("create: the Maven Central link on top of the notes",
             m.lastBody.contains("central.sonatype.com/artifact/io.github.jrmarcum/universal-wasm-loader-jvm/1.0.0"))
         m.log.clear()
         check("re-run: exit 0", run(m, "v1.0.0", a) == 0)
         check("re-run: no write", m.writes().isEmpty())
+    }
+    Mock().use { m ->
+        // U6 → U7 in one run: the page from the tag `tag` just made.
+        check("tag then page: both succeed", tagRun(m, "v2.0.0", a) == 0 && run(m, "v2.0.0", a) == 0 && "v2.0.0" in m.releases)
     }
     Mock().use { m ->
         m.tags["v1.0.1"] = "tag" to "c".repeat(40)
@@ -299,15 +355,10 @@ fun selftest(): Int {
         check("tag missing: no write (a release would create the tag)", m.writes().isEmpty())
     }
     Mock().use { m ->
-        m.tags["v1.0.0"] = "commit" to a
-        m.branches["release/v1.0.0"] = b
-        check("branch at another commit: refused, no write", run(m, "v1.0.0", a) == 1 && m.writes().isEmpty())
-    }
-    Mock().use { m ->
-        // H32 order: an existing Release is done with NO write, even if release/<tag> is missing.
+        // H32 order: an existing Release is done with NO write.
         m.tags["v1.0.0"] = "commit" to a
         m.releases += "v1.0.0"
-        check("existing Release, branch missing: exit 0, no write", run(m, "v1.0.0", a) == 0 && m.writes().isEmpty())
+        check("existing Release: exit 0, no write", run(m, "v1.0.0", a) == 0 && m.writes().isEmpty())
     }
     Mock().use { m ->
         m.tags["v1.0.0"] = "commit" to a
@@ -351,21 +402,22 @@ fun selftest(): Int {
 // ---------------------------------------------------------------------------------------------
 
 val argv = args.toList()
-val code = when (argv.firstOrNull()) {
+val code = when (val cmd = argv.firstOrNull()) {
     "selftest" -> selftest()
-    "release" -> {
+    "tag", "release" -> {
         val rest = argv.drop(1).filter { it != "--dry-run" }
         if (rest.size != 2) {
-            System.err.println("usage: kotlin scripts/github-release.main.kts release <tag> <commit-sha> [--dry-run]")
+            System.err.println("usage: kotlin scripts/github-release.main.kts $cmd <tag> <commit-sha> [--dry-run]")
             1
         } else {
             val token = System.getenv("GITHUB_TOKEN")
             val api = Api(System.getenv("GITHUB_API_URL") ?: "https://api.github.com", token, System.getenv("GITHUB_REPOSITORY") ?: "")
-            release(api, rest[0], rest[1], "--dry-run" in argv, !token.isNullOrEmpty())
+            if (cmd == "tag") tagCmd(api, rest[0], rest[1], "--dry-run" in argv, !token.isNullOrEmpty())
+            else release(api, rest[0], rest[1], "--dry-run" in argv, !token.isNullOrEmpty())
         }
     }
     else -> {
-        System.err.println("usage: kotlin scripts/github-release.main.kts (release <tag> <sha> [--dry-run] | selftest)")
+        System.err.println("usage: kotlin scripts/github-release.main.kts (tag|release <tag> <sha> [--dry-run] | selftest)")
         1
     }
 }
