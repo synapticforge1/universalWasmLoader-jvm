@@ -2,12 +2,12 @@
 
 Only open items; each points at its record. The status line lives here and nowhere else.
 
-**Status (2026-11-10):** **releasing 0.4.3** (owner: "release", level patch). Latest live:
-**0.4.2** (tag `v0.4.2` = `598d321`; Maven Central `<latest>0.4.2</latest>`). The release process
-was converged to the workspace's H33 shape (branch `h33-release-process`, merged into `main` for
-this release): `bump` takes a required level and commits itself; `./gradlew release` pushes `main`
-only; CI checks, tags, makes the page and publishes ([release.md](release.md)). The local half was
-rehearsed end to end against a scratch origin; 0.4.3 is the first release through it. Gate: 62 / 62 tests. History purged (H19) on
+**Status (2026-11-10):** **0.4.3 released and live** (owner: "release", level patch), the first
+release in the workspace's H33 shape: `bump` committed `5554109`, `./gradlew release` pushed
+`main` only, and CI run 42911973493 checked, tagged (`v0.4.3`, annotated, by
+`github-actions[bot]`), made the page and published, with a fatal read-back and signature check.
+Maven Central `<latest>0.4.3</latest>`; checked as a user (U10). The README install snippets name
+0.4.3. ⚠️ The version line now ARMS a release ([release.md](release.md)). Gate: 62 / 62 tests. History purged (H19) on
 2026-11-08 (every id after the root changed; [history-map-2026-11-08.md](history-map-2026-11-08.md)).
 Every release, its summary and run: [release.md](release.md) § Release History.
 
@@ -18,14 +18,12 @@ Every release, its summary and run: [release.md](release.md) § Release History.
 
 ## Backlog
 
-- 🟡 **The H33 release workflow is UNMEASURED on GitHub.** At the first push of `main`, read the
-  run: `checks` green, then `tag` / `release` / `publish` SKIPPED (the version is already tagged).
-  At the next release, read: the tag CI made (annotated, peels to the bump commit, by
-  `github-actions[bot]`), the page from it, the Central read-back and the signature step green.
-  Rehearsed so far: the local half end to end (scratch origin), the REST `tag` / `release`
-  commands as read-only dry runs on the real API, 29 self-test checks ([release.md](release.md)).
-- 🟡 **U10 as a user** is done by hand after a release (resolve the version from Central in a
-  scratch project, load a fixture); no script yet. The workspace card did not ask for one.
+- 🟡 **U10 as a user** is done by hand after a release (a one-time `.main.kts` resolving the
+  version from repo1, loading fixtures; done for 0.4.3). No committed script; the workspace card
+  did not ask for one.
+- 🟡 **Under Gradle's `-q`, `./gradlew release` prints none of the script's lines** (measured
+  2026-11-10; the push was read back with `ls-remote`). Run it without `-q`, or call
+  `kotlin scripts/release.main.kts` directly, to see the guards.
 - 🟡 **README third-party note** (optional, 2026-10-26 licence check): name the Gradle wrapper's
   Apache-2.0 licence and record where `math.wasm` came from (added in `09bf5c0`, provenance not
   recorded; almost certainly the owner's wasmtk). The repo complies without it.
