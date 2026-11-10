@@ -64,14 +64,38 @@ a new tag for the same code, never a moved tag.
 - One defect found by the rehearsal and fixed: a script started by the `kotlin` launcher on
   Windows could not start another `kotlin` (the launcher's quoted `JAVA_OPTS` broke the nested
   `kotlin.bat`). Children now start without the launcher's variables.
-- **UNMEASURED on GitHub** until the next push of `main` (`checks` only) and the next release
-  (`tag` → `release` → `publish` and the signature read-back).
+- **MEASURED on GitHub, 2026-11-10.** The non-release path: run 42909738486 on `8ec529d` (0.4.2
+  already tagged) → `checks` green, `tag` / `release` / `publish` skipped, no tag made. The release
+  path: 0.4.3, run 42911973493, all four jobs green (Release History below).
 
 ## Release History (newest first)
 
 Commit ids are POST-purge (H19, 2026-11-08); pre-purge ids cited elsewhere are in
 [history-map-2026-11-08.md](history-map-2026-11-08.md). Each release from 0.2.0 on went through the
 compatibility gate locally (`bump`) and on the runner (`release`).
+
+### 0.4.3 — 2026-11-10 · tag `v0.4.3` → `5554109` · live
+
+**What changed:** no library change (patch). This is the first release in the owner's order
+(workspace H33): `bump` takes a required level and commits itself; `./gradlew release` pushes
+`main` only; CI checks, then tags, then makes the page, then publishes, with a fatal read-back and
+a signature check. The page is made from the tag with no `release/<tag>` branch (C45). H34's
+owner-commands section is committed. Gate: floor patch; v0.4.2's 62 tests green (in `bump`, the
+local cold gate and CI). Owner: "release", level patch (asked; H34).
+**Local:** `./gradlew bump -Pkind=patch` → commit `5554109` "bump to v0.4.3" (version line only).
+`./gradlew release` passed its guards and the cold gate, pushed `main` and read it back (`ls-remote`
+`main` = `5554109`, no tag).
+**Run** 42911973493: `checks` → `tag` → `release` → `publish`, all green. **Tag:** made by CI,
+annotated (object `a1fddbe`, tagger `github-actions[bot]`, 22:12:30Z), peels to `5554109`. **Page:**
+`v0.4.3` by `github-actions[bot]`, 22:12:46Z, not a draft, the Maven Central link on top of the
+generated notes; `releases/latest` = `v0.4.3`; no `release/v0.4.3` branch. **Central:** the
+publish job's fatal read-back saw the POM, jar, `.asc` and sources jar answer 200, and the jar's
+signature gave `VALIDSIG` for `E4D45440…AFFFFB6D`. `<latest>0.4.3</latest>` (read after the run;
+POM 200 at 17:24 local, about 12 min after the tag). **As a user (U10):** in a scratch folder a
+`.main.kts` resolved `io.github.jrmarcum:universal-wasm-loader-jvm:0.4.3` from repo1. `math_50`
+`add(3, 4)` = 7 and `multiply(2.5, 4.0)` = 10.0; `add(2.7, 1)` was refused ("'add' parameter a is
+s32, got Double 2.7"); `imports_50` `scale` = 12.0, and loading it with no callbacks was refused,
+naming both.
 
 ### 0.4.2 — 2026-11-09 · tag `v0.4.2` → `598d321` · live
 
