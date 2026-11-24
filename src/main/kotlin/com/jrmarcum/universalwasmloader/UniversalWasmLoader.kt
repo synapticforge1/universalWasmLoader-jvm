@@ -2,24 +2,16 @@ package com.jrmarcum.universalwasmloader
 
 import com.dylibso.chicory.runtime.ImportValues
 import com.dylibso.chicory.runtime.Instance
-import com.dylibso.chicory.wasi.WasiOptions
-import com.dylibso.chicory.wasi.WasiPreview1
 import com.dylibso.chicory.wasm.Parser
 import com.dylibso.chicory.wasm.types.ExternalType
 import com.dylibso.chicory.wasm.types.ValueType
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
-import kotlinx.coroutines.future.await
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
-import java.io.File
 import java.net.URI
-import java.net.http.HttpClient
-import java.net.http.HttpRequest
-import java.net.http.HttpResponse
-import java.net.http.HttpTimeoutException
 import java.time.Duration
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -271,7 +263,7 @@ internal suspend fun loadFromUrl(
     val (cleanUrl, version) = parseVersionSuffix(source)
     val limit = options.timeout
     val connect = if (limit != null && limit < HTTP_CONNECT_TIMEOUT) limit else HTTP_CONNECT_TIMEOUT
-    val httpClient = HttpClient.newBuilder().connectTimeout(connect).build()
+    val httpClient = Host.http(connect)
 
     // SPEC 4.0.0 §2 — the .wit first: 404 / 410 means absent (raw exports); every other
     // outcome — a status, a network error, the time limit — fails the load before the .wasm
@@ -294,27 +286,13 @@ internal suspend fun loadFromUrl(
  * null for a 404 / 410 when [absentOk]; any other non-2xx status throws `IOException` naming
  * the status and URL. Coroutine cancellation cancels the request and propagates unchanged.
  */
-private suspend fun fetchBytes(client: HttpClient, url: String, limit: Duration?, absentOk: Boolean): ByteArray? {
-    val request = HttpRequest.newBuilder().uri(URI.create(url)).build()
-    val send: suspend () -> HttpResponse<ByteArray> = {
-        try {
-            client.sendAsync(request, HttpResponse.BodyHandlers.ofByteArray()).await()
-        } catch (e: kotlinx.coroutines.CancellationException) {
-            throw e
-        } catch (e: java.net.http.HttpConnectTimeoutException) {
-            throw HttpTimeoutException("wasmImport: could not connect within $HTTP_CONNECT_TIMEOUT to $url")
-        } catch (e: java.io.IOException) {
-            throw java.io.IOException("wasmImport: fetching $url failed: ${e.message ?: e::class.simpleName}", e)
-        }
+private suspend fun fetchBytes(client: Host.Http, url: String, limit: Duration?, absentOk: Boolean): ByteArray? {
+    val (status, body) = if (limit == null) client.get(url) else {
+        withTimeoutOrNull(limit.toMillis()) { client.get(url) } ?: throw Host.timeout(url, limit.toMillis())
     }
-    val resp = if (limit == null) send() else {
-        withTimeoutOrNull(limit.toMillis()) { send() }
-            ?: throw HttpTimeoutException("wasmImport: $url did not complete within the time limit of ${limit.toMillis()} ms")
-    }
-    val status = resp.statusCode()
     if (absentOk && (status == 404 || status == 410)) return null
     if (status !in 200..299) throw java.io.IOException("wasmImport: HTTP $status for $url")
-    return resp.body()
+    return body
 }
 
 // ---------------------------------------------------------------------------
@@ -392,15 +370,8 @@ internal fun parseVersionSuffix(path: String): Pair<String, Int?> {
     return Pair(path.substring(0, match.range.first), match.groupValues[1].toInt())
 }
 
-internal fun loadBytes(path: String): ByteArray {
-    val file = File(path)
-    if (file.exists()) return file.readBytes()
-    val resource = path.trimStart('/', '\\').let { "/$it" }
-    return (ModuleHandle::class.java.getResourceAsStream(resource)
-        ?: ModuleHandle::class.java.getResourceAsStream(path)
-        ?: throw java.io.FileNotFoundException("WASM file not found: $path"))
-        .use { it.readBytes() }
-}
+internal fun loadBytes(path: String): ByteArray =
+    Host.readLocal(path) ?: throw java.io.FileNotFoundException("WASM file not found: $path")
 
 /** The companion `.wit` of a path ending in `.wasm` (only that suffix is replaced), else null. */
 internal fun witPathFor(path: String): String? =
@@ -419,24 +390,11 @@ internal fun witUrlFor(url: String): String? {
  * and no such resource); a `.wit` that exists but cannot be read throws `IOException` naming it.
  */
 internal fun readLocalWit(path: String): String? {
-    val file = File(path)
-    val bytes = if (file.exists()) {
-        try {
-            file.readBytes()
-        } catch (e: java.io.IOException) {
-            throw java.io.IOException("cannot read .wit '$path': ${e.message}", e)
-        }
-    } else {
-        val resource = path.trimStart('/', '\\').let { "/$it" }
-        val stream = ModuleHandle::class.java.getResourceAsStream(resource)
-            ?: ModuleHandle::class.java.getResourceAsStream(path)
-            ?: return null
-        try {
-            stream.use { it.readBytes() }
-        } catch (e: java.io.IOException) {
-            throw java.io.IOException("cannot read .wit '$path': ${e.message}", e)
-        }
-    }
+    val bytes = try {
+        Host.readLocal(path)
+    } catch (e: java.io.IOException) {
+        throw java.io.IOException("cannot read .wit '$path': ${e.message}", e)
+    } ?: return null
     return decodeWit(path, bytes)
 }
 
@@ -524,12 +482,10 @@ private fun instantiateFromBytes(
 
     // SPEC §10.2 — provide a minimal WASI Preview 1 (chicory-wasi, stdio inherited)
     // so an I/O-using library — e.g. a `wasmtk modc` lib that calls console.log →
-    // fd_write — instantiates here. Pure-compute modules import none of it.
-    val wasi = WasiPreview1.builder()
-        .withOptions(WasiOptions.builder().inheritSystem().build())
-        .build()
+    // fd_write — instantiates here. Pure-compute modules import none of it. The
+    // inherited streams and environment are the OS edge, so they come from Host.
     val importBuilder = ImportValues.builder()
-    importBuilder.addFunction(*wasi.toHostFunctions())
+    importBuilder.addFunction(*Host.wasiHostFunctions())
     if (witDoc != null && witDoc.imports.isNotEmpty()) {
         for (fn in Abi.buildEnvFunctions(witDoc.imports, callbacks, memRef)) {
             importBuilder.addFunction(fn)

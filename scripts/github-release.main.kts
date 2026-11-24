@@ -13,7 +13,7 @@
 // the public API without it), GITHUB_API_URL (default https://api.github.com; the self-test
 // points it at a mock).
 //
-// `tag` — CI creates the annotated tag on the commit `checks` passed (owner, 2026-11-10: "check
+// `tag` — CI creates the annotated tag on the pushed commit, which every gate passed locally (owner, 2026-11-10: "check
 // first, then push the tag"). Absent → created (tag object, then the ref) and read back, peeling
 // to <commit-sha>. Already at <commit-sha> → done, no write (a re-run is safe). Anywhere else →
 // refused: a published tag never moves.

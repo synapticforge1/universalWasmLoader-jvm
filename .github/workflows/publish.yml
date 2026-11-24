@@ -1,21 +1,19 @@
-# Release: on every push to `main` — checks first; and when the pushed version has no tag yet,
-# then the tag, then the GitHub Release page from the tag, then the Maven Central publish.
+# Release: on every push to `main` — the version is read; and when it has no tag yet, the tag, then
+# the GitHub Release page from the tag, then the Maven Central publish. CI ONLY PUBLISHES.
 #
-# 🔒 The owner's order (2026-11-10; workspace letter H33, `release-process.md` § 5 U5–U9): "the CI
-# to check first, then push the tag, and then create the release page from the tag, then publish
-# the package to the registry for the project in that order." Locally, `./gradlew release`
-# (scripts/release.main.kts) only pushes `main` with the bump commit; it makes no tag. A tag that
-# the job's GITHUB_TOKEN pushes starts no new workflow run, so all four steps run here, by `needs:`.
+# 🔒 The owner (2026-11-17; letter H37, review-process.md § 10): "We want the CI to verify the version,
+# then tag, create the release page and publish, and skip any version already published." Every gate and
+# test suite runs LOCALLY, as the first steps of `./gradlew release` (scripts/release.main.kts: the
+# review set, then every gate), which then pushes `main` with the bump commit and makes no tag. A tag that
+# the job's GITHUB_TOKEN pushes starts no new workflow run, so all four jobs run here, by `needs:`.
 #
 # FOUR JOBS, EACH WITH ONLY ITS OWN PERMISSION (top level: none; workspace C30):
 #
-#   checks   contents: read. Token-less clone of the pushed commit (HEAD = github.sha). The build,
-#            the tests, the compatibility gate in release mode (the floor and the previous tag's
-#            tests), both scripts' self-tests. Then "is this a release?": the version line has no
-#            tag on GitHub yet.
-#   tag      contents: write; only when `checks` passed on THIS commit and the version is new. The
-#            annotated tag v<version> on github.sha, through the REST API, read back
-#            (scripts/github-release.main.kts tag). A tag at another commit is refused.
+#   version  contents: read. Token-less: reads the version line of the pushed commit and asks GitHub
+#            whether tag v<version> exists. No build, no test, no toolchain.
+#   tag      contents: write; only for a new version. The annotated tag v<version> on github.sha,
+#            through the REST API, read back (scripts/github-release.main.kts tag). A tag at another
+#            commit is refused.
 #   release  contents: write. The GitHub Release page FROM the tag, in the workspace's H32 order:
 #            tag peels to github.sha → an existing page is done → POST with generated notes and the
 #            Maven Central link on top → read back → peel again (… release). No branch (C45).
@@ -64,8 +62,8 @@ env:
   MAVEN_PATH: io/github/jrmarcum/universal-wasm-loader-jvm
 
 jobs:
-  checks:
-    name: Checks (tests + compatibility gate) — first
+  version:
+    name: Verify the version — is it new?
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -83,52 +81,16 @@ jobs:
           git init -q . && git remote add origin "https://github.com/${GITHUB_REPOSITORY}.git"
           git fetch -q --depth=1 origin "${GITHUB_SHA}" && git checkout -q FETCH_HEAD
           test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
-          # The compatibility gate compares against the previous tag: fetch every tag (shallow).
-          git fetch -q --depth=1 origin 'refs/tags/*:refs/tags/*'
 
-      - name: Install JDK 25.0.5+8 (Temurin, pinned)
-        run: |
-          set -euo pipefail
-          curl -fsSL --retry 4 --retry-all-errors "${JDK_URL}" -o /tmp/jdk.tar.gz
-          echo "${JDK_SHA256}  /tmp/jdk.tar.gz" | sha256sum -c -
-          mkdir -p "$HOME/jdk" && tar -xzf /tmp/jdk.tar.gz -C "$HOME/jdk" --strip-components=1
-          echo "JAVA_HOME=$HOME/jdk" >> "$GITHUB_ENV"
-          echo "$HOME/jdk/bin"       >> "$GITHUB_PATH"
-
-      - name: Install the Kotlin 2.2.0 compiler (pinned; for the scripts)
-        run: |
-          set -euo pipefail
-          curl -fsSL --retry 4 --retry-all-errors "${KOTLINC_URL}" -o /tmp/kotlinc.zip
-          echo "${KOTLINC_SHA256}  /tmp/kotlinc.zip" | sha256sum -c -
-          unzip -q /tmp/kotlinc.zip -d "$HOME"
-          echo "$HOME/kotlinc/bin" >> "$GITHUB_PATH"
-
-      - name: Show toolchain
-        run: |
-          java -version
-          kotlin -version
-          chmod +x gradlew && ./gradlew --version
-
-      # check = tests + the api/ snapshot check
-      - name: Check
-        run: ./gradlew --no-daemon check
-
-      # The gate's self-test, then this version against the previous tag: the SPEC/API floor, the
-      # Breaking Changes row, and the previous tag's tests against this library.
-      - name: Compatibility gate
-        run: |
-          kotlin scripts/compat.main.kts selftest
-          kotlin scripts/compat.main.kts release
-
-      - name: Release script self-test
-        run: kotlin scripts/github-release.main.kts selftest
-
-      # A release = the version line names a version that has no tag on GitHub yet.
+      # A release = the version line names a version that has no tag on GitHub yet. The line is read
+      # with the same pattern the bump writes (scripts/compat.main.kts VERSION_LINE): one line, X.Y.Z.
       - name: Is this a release?
         id: is-release
         run: |
           set -euo pipefail
-          version="$(kotlin scripts/compat.main.kts version)"
+          count="$(grep -cE '^version = "[0-9]+\.[0-9]+\.[0-9]+"$' build.gradle.kts || true)"
+          test "${count}" = "1" || { echo "❌ expected one version line in build.gradle.kts, found ${count}"; exit 1; }
+          version="$(sed -nE 's/^version = "([0-9]+\.[0-9]+\.[0-9]+)"$/\1/p' build.gradle.kts)"
           echo "${version}" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' || { echo "❌ bad version line: ${version}"; exit 1; }
           if [ -z "$(git ls-remote --tags origin "refs/tags/v${version}")" ]; then is_release=true; else is_release=false; fi
           echo "version=${version}"       >> "$GITHUB_OUTPUT"
@@ -137,8 +99,8 @@ jobs:
 
   tag:
     name: Tag v<version> on the checked commit
-    needs: checks
-    if: needs.checks.outputs.is_release == 'true'
+    needs: version
+    if: needs.version.outputs.is_release == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -171,12 +133,12 @@ jobs:
       - name: Create the annotated tag (REST API), read back
         env:
           GITHUB_TOKEN: ${{ github.token }}
-          VERSION: ${{ needs.checks.outputs.version }}
+          VERSION: ${{ needs.version.outputs.version }}
         run: kotlin scripts/github-release.main.kts tag "v${VERSION}" "${GITHUB_SHA}"
 
   release:
     name: GitHub Release page from the tag
-    needs: [checks, tag]
+    needs: [version, tag]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -208,17 +170,17 @@ jobs:
       - name: Create the GitHub Release (REST API), read back
         env:
           GITHUB_TOKEN: ${{ github.token }}
-          VERSION: ${{ needs.checks.outputs.version }}
+          VERSION: ${{ needs.version.outputs.version }}
         run: kotlin scripts/github-release.main.kts release "v${VERSION}" "${GITHUB_SHA}"
 
   publish:
     name: Publish to Maven Central — last
-    needs: [checks, release]
+    needs: [version, release]
     runs-on: ubuntu-latest
     permissions:
       contents: read
     env:
-      VERSION: ${{ needs.checks.outputs.version }}
+      VERSION: ${{ needs.version.outputs.version }}
     steps:
       - name: Clone the checked commit (no token)
         run: |
@@ -253,8 +215,8 @@ jobs:
           echo "JAVA_HOME=$HOME/jdk" >> "$GITHUB_ENV"
           echo "$HOME/jdk/bin"       >> "$GITHUB_PATH"
 
-      # The only step that sees the secrets. Tests ran in `checks`; skipping them here keeps the
-      # test suite (and its dependencies) away from the signing key.
+      # The only step that sees the secrets. The tests ran locally before the push (release.main.kts);
+      # skipping them here keeps the test suite (and its dependencies) away from the signing key.
       - name: Publish (signed) to Maven Central
         if: steps.served.outputs.served == 'false'
         env:

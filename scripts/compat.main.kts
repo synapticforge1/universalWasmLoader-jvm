@@ -6,7 +6,7 @@
 //   kotlin scripts/compat.main.kts bump patch|minor|major     raise the version (clean tree only; refuses
 //                                                             below the floor) and commit "bump to vX.Y.Z"
 //   kotlin scripts/compat.main.kts report                     the floor and the previous-tag tests, nothing written
-//   kotlin scripts/compat.main.kts release                    CI `checks`: this version against the previous tag
+//   kotlin scripts/compat.main.kts release                    release.main.kts's gate: this version vs the last tag
 //   kotlin scripts/compat.main.kts version                    print the version line (CI: "is this a release?")
 //   kotlin scripts/compat.main.kts selftest                   pure checks of the gate's logic (no git, no build)
 //
@@ -141,6 +141,7 @@ fun specOf(readme: String?, spec: String?): Ver? =
 // ---------------------------------------------------------------------------------------------
 
 val root: File = __FILE__.absoluteFile.parentFile.parentFile
+// [win-x64] [win-arm64] the wrapper is gradlew.bat, started through cmd (cmem/platforms.md § win-x64).
 val isWindows = System.getProperty("os.name").lowercase().contains("win")
 
 fun fail(msg: String): Nothing {
