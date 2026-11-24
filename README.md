@@ -243,8 +243,9 @@ downloads the correct Gradle version automatically.
 
 The single source of truth for the version is the `version = "X.Y.Z"` line in `build.gradle.kts`.
 
-No tag is made by hand. CI checks the pushed commit first, then creates the tag, then the GitHub
-Release page from the tag, then publishes to Maven Central.
+No tag is made by hand. Every check runs locally first: the five reviews, then every gate and the full
+test suite. CI then only publishes: it verifies that the pushed version is new, creates the tag, makes the
+GitHub Release page from the tag, and publishes to Maven Central.
 
 **1. Bump the version.** The level is required (there is no default). The bump refuses a dirty
 working tree, runs the compatibility gate, refuses a level below the floor it computes, and then
@@ -264,23 +265,28 @@ Requires the `kotlin` command-line compiler on `PATH`.
 **2. Push `main`:**
 
 ```sh
-./gradlew release              # guards + a cold gate, then pushes main only (no tag)
-./gradlew release -PdryRun     # every guard and the gate, pushes nothing
+./gradlew release              # the review gate, guards, every gate and the tests, then pushes main only
+./gradlew release -PdryRun     # the same, pushes nothing
 ```
 
-It refuses unless the tree is clean, the branch is `main` and a fast-forward of `origin/main`, the
-tag is new locally and on GitHub, and Maven Central does not have the version yet.
+It refuses unless:
+- the review set has run on this code;
+- the tree is clean;
+- the branch is `main` and a fast-forward of `origin/main`;
+- the tag is new, locally and on GitHub;
+- Maven Central does not have the version yet;
+- every gate passes.
 
 The push runs `.github/workflows/publish.yml` ("Release"), four jobs, each with only the
 permission it needs:
-- `checks` (read-only, no secrets): the tests and the compatibility gate.
-- `tag`: only for a version that has no tag yet; creates the annotated tag on the checked commit.
+- `version` (read-only): reads the version line and whether its tag exists. No build, no test.
+- `tag`: only for a version that has no tag yet; creates the annotated tag on the pushed commit.
 - `release`: the GitHub Release page from that tag.
 - `publish`: skips when Maven Central already has the version. Otherwise it publishes the signed
   artifacts via the `com.vanniktech.maven.publish` plugin, and it is the only job that sees the
   secrets. It then reads the artifacts back from Maven Central and verifies the jar's signature.
 
-A push of `main` whose version is already tagged runs `checks` only. The JDK, the Kotlin compiler
+A push of `main` whose version is already tagged runs `version` only. The JDK, the Kotlin compiler
 and the Gradle distribution are pinned by version and SHA-256.
 
 > **`run:`-only workflow.** The publish workflow uses **no third-party `uses:` steps**: checkout is

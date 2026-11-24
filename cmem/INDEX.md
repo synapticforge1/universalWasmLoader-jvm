@@ -1,45 +1,16 @@
-# cmem — Portable Project Memory for universalWasmLoader-jvm
+# INDEX: universalWasmLoader-jvm
 
-This folder is the **authoritative, portable project memory** for `universalWasmLoader-jvm`. It is
-committed and travels with the repo; `cmem/local/` (gitignored) holds machine facts only. The
-workspace floor (`../../../cmem/`) applies underneath; this repo's files govern inside it.
+Read STATE.md first. Open another file only when the task matches its line.
 
-## Policy
-
-- **`cmem/` is the single home for ALL project memory.** `CLAUDE.md` at the root is a pointer only.
-- **One line per file below; no status narrative here.** State lives once, in [open-work.md](open-work.md).
-- **Working memory, not an archive; git is the archive.** Completed work is summarized with its
-  commit and a `git show` pointer to the text it replaces.
-- **A number is a claim with a date.** Re-derive before quoting or acting on it.
-- **Commit ids written before 2026-11-08 are PRE-PURGE** (H19 rewrote every id after the root).
-  Look them up in [history-map-2026-11-08.md](history-map-2026-11-08.md); `git show` on an old id
-  fails.
-- **`README.md` is NOT memory.** It is the public doc; internal decision logs stay here.
-- **No secrets or personal information in any committed file** — [working-rules.md](working-rules.md).
-- **Never run a formatter on `cmem/`.**
-
-## Triggers (binding on every agent)
-
-1. **"update the project memory"** (or "update memory", "record this") — revise the matching topic
-   file and its line below (absolute dates; update, don't duplicate), then AUDIT: grep the old values
-   across `cmem/`, `README.md` and `CLAUDE.md`, classify each hit live or dated, measure when two
-   disagree. Sync the README only where the change is user-relevant.
-2. **"look for code issues"** (or "code audit") — audit tested AND untested paths for workarounds,
-   dead code (grep-verified), bugs (ABI marshalling, pointer/length math, endianness, missing
-   `cabi_post` calls) and silent fall-throughs (a default returned instead of an error — the worst
-   class). Report `file:line` + severity, fix the safe ones, keep `./gradlew check` green.
-3. **Correspondence before new work** (🔒 owner, 2026-10-26) — read the workspace ledger first
-   ([working-rules.md](working-rules.md) § Before starting).
-4. **Regression gate** — a change to `src/` runs the full gate (`./gradlew check`), reading the counts.
-
-## Files
-
-| File | What it holds |
-| --- | --- |
-| [open-work.md](open-work.md) | The status line and the ONE list of open items: owner calls, backlog, ledger answers pending |
-| [overview.md](overview.md) | What the port is and why: runtime, coordinates (🔒 groupId stays), design principles, API (HTTP errors, time limit, cancellation), ABI and typed raw mode, SPEC 4.0.0 (refusals, strict WIT), SPEC §10, tests and fixtures, build / publishing plugin / credentials (the release history moved to release.md) |
-| [release.md](release.md) | 🔒 How a release runs (bump → push `main` → CI checks, tags, page, publishes; workspace H33) and the **Release History**, newest first, a summary per version |
-| [working-rules.md](working-rules.md) | How an increment is done here: ledger first, git (the version line arms a release), the gate, `.main.kts` scripts, the privacy rule and its path test, the owner's three words (H34) |
-| [compat-gate.md](compat-gate.md) | The SemVer compatibility gate: API snapshot, floor, previous-tag tests, Breaking row; the `bump.sh` port proof; the inversion; traps |
-| [history-map-2026-11-08.md](history-map-2026-11-08.md) | The H19 history purge (`.gradle/` / `build/` removed from every commit): how it was verified, and every pre-purge → post-purge commit id |
-| [best-practices.md](best-practices.md) | This repo's own rules (§ L) and the workspace's 28 ★ rules, copied verbatim under a dated stamp |
+- [working-rules.md](working-rules.md): before the first commit or command of a session
+- [open-work.md](open-work.md): when choosing the next item or picking one up
+- [overview.md](overview.md): when a change touches the API, the ABI, SPEC behaviour or a recorded decision
+- [compat-gate.md](compat-gate.md): before a bump, or when the API snapshot or the floor is in question
+- [release.md](release.md): only when releasing; the Release History, newest first
+- [review-process.md](review-process.md): only during a review; this repo's slots in the standard
+- [platforms.md](platforms.md): when a platform, the host module or a "Tested on" line is in question
+- [best-practices.md](best-practices.md): when choosing how to test or measure; this repo's own lessons (§ L)
+- [best-practices-shared.md](best-practices-shared.md): the workspace's ★ rules, a stamped copy; when § L is silent
+- [archive/](archive/): do not read unless the owner asks about past work; search it by item ID
+- `local/`: machine facts; never given to a reviewer
+- `review-issues.md` (untracked): open review issues, during a review only

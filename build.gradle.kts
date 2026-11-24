@@ -57,7 +57,20 @@ tasks.withType<JavaCompile> {
 }
 
 tasks.test {
-    useJUnitPlatform()
+    // The host self-check (letter H40) runs only on demand, never as part of the suite.
+    useJUnitPlatform { excludeTags("host-self-check") }
+}
+
+// `./gradlew hostSelfCheck`: Host.kt's operations tried on this machine (files, the classpath,
+// loopback HTTP, WASI's inherited streams). On demand only; it removes what it writes.
+tasks.register<Test>("hostSelfCheck") {
+    group = "verification"
+    description = "Runs Host.selfCheck() on this machine (on demand; letter H40)."
+    testClassesDirs = sourceSets["test"].output.classesDirs
+    classpath = sourceSets["test"].runtimeClasspath
+    useJUnitPlatform { includeTags("host-self-check") }
+    testLogging { showStandardStreams = true }
+    outputs.upToDateWhen { false }
 }
 
 // KGP 2.2's ABI validation does not hook `check` by itself (measured 2026-10-26: `check
@@ -71,12 +84,14 @@ tasks.named("check") {
 //   ./gradlew bump -Pkind=patch|minor|major   the level is REQUIRED (no default); clean tree only;
 //                                             refuses a level below the compatibility floor; commits
 //                                             "bump to vX.Y.Z" (scripts/compat.main.kts)
-//   ./gradlew release [-PdryRun]              guards, then pushes `main` ONLY and reads it back; NO tag
-//                                             is made here — CI checks, tags, makes the page and
-//                                             publishes (scripts/release.main.kts)
+//   ./gradlew release [-PdryRun]              the review gate, guards and every gate (locally), then
+//                                             pushes `main` ONLY and reads it back; NO tag is made here —
+//                                             CI only publishes: it verifies the version, tags, makes the
+//                                             page and publishes (scripts/release.main.kts)
 fun runKotlinScript(script: String, vararg args: String): Int {
     val path = file(script).absolutePath
-    // `kotlin` is a .cmd/.bat launcher on Windows, so it goes through cmd there.
+    // [win-x64] [win-arm64] `kotlin` is a .cmd/.bat launcher on Windows, so it goes through cmd there
+    // (cmem/platforms.md § win-x64).
     val cmd = if (System.getProperty("os.name").lowercase().contains("win")) {
         listOf("cmd", "/c", "kotlin", path) + args
     } else {
@@ -101,7 +116,7 @@ tasks.register("bump") {
 
 tasks.register("release") {
     group = "publishing"
-    description = "Guards, then pushes main only (no tag); CI checks, tags, makes the page, publishes."
+    description = "Review gate, guards and every gate locally, then pushes main only; CI tags and publishes."
     doLast {
         val args = if (project.hasProperty("dryRun")) arrayOf("--dry-run") else emptyArray()
         val exit = runKotlinScript("scripts/release.main.kts", *args)

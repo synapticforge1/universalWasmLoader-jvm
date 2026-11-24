@@ -6,7 +6,7 @@
 //   kotlin scripts/compat.main.kts bump patch|minor|major     raise the version (clean tree only; refuses
 //                                                             below the floor) and commit "bump to vX.Y.Z"
 //   kotlin scripts/compat.main.kts report                     the floor and the previous-tag tests, nothing written
-//   kotlin scripts/compat.main.kts release                    CI `checks`: this version against the previous tag
+//   kotlin scripts/compat.main.kts release                    release.main.kts's gate: this version vs the last tag
 //   kotlin scripts/compat.main.kts version                    print the version line (CI: "is this a release?")
 //   kotlin scripts/compat.main.kts selftest                   pure checks of the gate's logic (no git, no build)
 //
@@ -141,6 +141,7 @@ fun specOf(readme: String?, spec: String?): Ver? =
 // ---------------------------------------------------------------------------------------------
 
 val root: File = __FILE__.absoluteFile.parentFile.parentFile
+// [win-x64] [win-arm64] the wrapper is gradlew.bat, started through cmd (cmem/platforms.md § win-x64).
 val isWindows = System.getProperty("os.name").lowercase().contains("win")
 
 fun fail(msg: String): Nothing {
@@ -152,8 +153,10 @@ fun note(msg: String) = System.err.println(msg)
 
 data class Run(val exit: Int, val out: String)
 
-fun run(dir: File, vararg cmd: String, timeoutMin: Long = 30): Run {
-    val p = ProcessBuilder(*cmd).directory(dir).redirectErrorStream(true).start()
+fun run(dir: File, vararg cmd: String, timeoutMin: Long = 30, env: Map<String, String> = emptyMap()): Run {
+    val pb = ProcessBuilder(*cmd).directory(dir).redirectErrorStream(true)
+    pb.environment().putAll(env)
+    val p = pb.start()
     val out = p.inputStream.bufferedReader().readText()
     if (!p.waitFor(timeoutMin, TimeUnit.MINUTES)) {
         p.destroyForcibly()
@@ -169,11 +172,11 @@ fun gitShow(ref: String, path: String): String? =
 
 // The wrapper by ABSOLUTE path: cmd does not search the working directory when
 // NoDefaultCurrentDirectoryInExePath is set, and then `gradlew.bat` "is not recognized".
-fun gradle(dir: File, vararg args: String): Run =
-    if (isWindows) run(dir, "cmd", "/c", File(dir, "gradlew.bat").absolutePath, "--no-daemon", "--console=plain", *args)
+fun gradle(dir: File, vararg args: String, env: Map<String, String> = emptyMap()): Run =
+    if (isWindows) run(dir, "cmd", "/c", File(dir, "gradlew.bat").absolutePath, "--no-daemon", "--console=plain", *args, env = env)
     else {
         File(dir, "gradlew").setExecutable(true)
-        run(dir, File(dir, "gradlew").absolutePath, "--no-daemon", "--console=plain", *args)
+        run(dir, File(dir, "gradlew").absolutePath, "--no-daemon", "--console=plain", *args, env = env)
     }
 
 val gradleFile = File(root, "build.gradle.kts")
@@ -236,7 +239,11 @@ fun previousTests(tag: String): Run {
         }
         File(root, "gradle").copyRecursively(File(wt, "gradle"), overwrite = true)
         File(root, if (isWindows) "gradlew.bat" else "gradlew").copyTo(File(wt, if (isWindows) "gradlew.bat" else "gradlew"), overwrite = true)
-        val r = gradle(wt, "test")
+        // The tag's tests are run untouched, so a temp-folder leak in THEM (v0.4.3's left 12 folders a run,
+        // measured 2026-11-24) is contained here: their JVMs get a temp directory inside the worktree, which
+        // is removed with it (Tooling rule 15).
+        val tmp = File(wt, ".tmp").apply { mkdirs() }
+        val r = gradle(wt, "test", env = mapOf("JAVA_TOOL_OPTIONS" to "-Djava.io.tmpdir=${tmp.absolutePath}"))
         val results = File(wt, "build/test-results/test").listFiles { f -> f.name.endsWith(".xml") }.orEmpty()
         var tests = 0
         var failed = 0

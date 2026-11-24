@@ -1,77 +1,63 @@
 # release.md — how a release runs, and the Release History
 
-🔒 The one place releases are recorded (owner, 2026-11-10: "releases should be recorded in one place
-in every project; … release.md should be the file name with the newest first in the 'Release
-History' with a summary of what changed in each one" — workspace letter H33, decision D3). The
-uniform shape it follows is the workspace's `../../../cmem/release-process.md` § 5 (slots U1–U12).
-Build facts, the publishing plugin and the credentials stay in [overview.md](overview.md) § Build
-and release; the gate in [compat-gate.md](compat-gate.md).
+Last verified: 2026-11-24. The one place releases are recorded (owner, 2026-11-10; letter H33, D3): newest
+first, a summary of what changed in each. The uniform shape is the workspace's
+`../../../workspace/cmem/release-process.md` § 5 (U1–U12, amended by the review standard, letter H37). Build
+facts and credentials are in [overview.md](overview.md); the gate in [compat-gate.md](compat-gate.md).
 
-## How a release runs (since 2026-11-10)
+## How a release runs (since 2026-11-24)
 
-🔒 **The owner's order (2026-11-10, D1): "the CI to check first, then push the tag, and then create
-the release page from the tag, then publish the package to the registry."** The owner's word
-"release" = "push" (memory, commit, merge, push `main`), then this (`working-rules.md` § Owner
-commands). Nothing is tagged or published from the owner's machine.
+🔒 **The owner (2026-11-17): every gate runs locally; "We want the CI to verify the version, then tag, create
+the release page and publish, and skip any version already published."** The word "release" = "push", then
+this ([working-rules.md](working-rules.md) § Owner commands). Nothing is tagged or published from this machine.
 
 **Local — the owner's go and level (U1–U4):**
 
 1. **U1** The owner gives the go and the level (patch / minor / major); there is no default.
-2. **U2** Everything is merged into `main` first, the memory included.
-3. **U3** `./gradlew bump -Pkind=<level>` (→ `kotlin scripts/compat.main.kts bump <level>`): it
-   refuses a dirty tree (untracked files count), a stale `api/` snapshot, and a level below the
-   compatibility floor. For a patch or minor floor it runs the previous tag's tests against this
-   tree. It stamps the README `_next release_` row, then **commits `bump to vX.Y.Z` itself**.
-4. **U4** `./gradlew release` (→ `kotlin scripts/release.main.kts`; `-PdryRun` for a rehearsal).
-   It checks a clean tree, that the branch is `main` and a fast-forward of the freshly fetched
-   `origin/main`, that tag `vX.Y.Z` is absent locally and on origin, and that Maven Central does
-   not serve the version (POM 404). It runs a cold gate: `gradlew clean check`, `compat release`,
-   and both self-tests. Then it **pushes `main` only** and reads it back with `git ls-remote`.
-   **No tag, no `-f`** — the old Gradle task's `git tag -f` and forced tag push are gone.
+2. **The review set** has run on this code (letter H37, [review-process.md](review-process.md)): the gitignored
+   `cmem/review-issues.md` holds `- Review complete: <commit>`.
+3. **U2** Everything is merged into `main` first, the memory included.
+4. **U3** `./gradlew bump -Pkind=<level>` refuses a dirty tree (untracked files count), a stale `api/`
+   snapshot and a level below the floor; for a patch or minor floor it runs the previous tag's tests. It
+   stamps the README `_next release_` row, then **commits `bump to vX.Y.Z` itself**.
+5. **U4** `./gradlew release` (`-PdryRun` to rehearse; `scripts/release.main.kts`), in order:
+   - **the review gate** — the review line is present, its commit is an ancestor of HEAD, and since it only
+     `cmem/`, `README.md` and the version line changed;
+   - a clean tree; `main`, a fast-forward of the freshly fetched `origin/main`; the tag new locally and on
+     origin; Maven Central without the version (POM 404);
+   - **every gate, cold and locally** — `gradlew clean check`, `compat release`, `check-host`, `check-privacy`,
+     `check-cmem` and the scripts' self-tests ([working-rules.md](working-rules.md) § The gate);
+   - then it **pushes `main` only** and reads it back with `git ls-remote`. No tag, no `-f`.
 
-**CI — `.github/workflows/publish.yml` ("Release"), on every push to `main` (U5–U9):**
+**CI — `.github/workflows/publish.yml` ("Release"), on every push to `main`, ONLY PUBLISHES:**
 
-| job | permission | does |
-| --- | --- | --- |
-| `checks` (first) | contents: read | Token-less clone of `github.sha`. Runs `check`, the compat self-test and `release` mode (floor + previous tag's tests), and the release script's self-test. "Is this a release?": the version has no tag on GitHub |
-| `tag` | contents: write | Only when `checks` passed and the version is new. `github-release.main.kts tag`: the annotated tag on `github.sha` by REST, read back. A tag elsewhere is refused (a published tag never moves); one already at `github.sha` = done |
-| `release` | contents: write | `github-release.main.kts release`: the page FROM the tag in H32's order (tag peels → an existing page is done → POST with generated notes and the Maven Central link on top → read back → peel again). No `release/<tag>` branch (workspace C45) |
-| `publish` (last) | contents: read | Skips the upload when `repo1` already serves the version (re-run safe). Otherwise `./gradlew -x test publishAllPublicationsToMavenCentralRepository`, with the four secrets in that one step. Then the **fatal read-back**: the POM, jar, `.asc` and sources jar answer 200 (polled up to 60 min), and the jar's signature gives GnuPG `VALIDSIG` for the pinned fingerprint `E4D45440A37F73383B38842FFF9D45E2AFFFFB6D` |
+- **`version`** (contents: read): a token-less clone of `github.sha`; reads the one `version = "X.Y.Z"` line and
+  asks GitHub whether tag `vX.Y.Z` exists. No build, no test, no toolchain.
+- **`tag`** (contents: write; only for a new version): `github-release.main.kts tag` makes the annotated tag on
+  `github.sha` by REST and reads it back. A tag elsewhere is refused; one already at `github.sha` = done.
+- **`release`** (contents: write): `github-release.main.kts release`, the page FROM the tag in H32's order
+  (tag peels → an existing page is done → POST with generated notes and the Maven Central link on top → read
+  back → peel again). No `release/<tag>` branch (C45).
+- **`publish`** (contents: read): skips when `repo1` serves the version. Otherwise
+  `./gradlew -x test publishAllPublicationsToMavenCentralRepository`, the four secrets in that one step. Then
+  the **fatal read-back**: POM, jar, `.asc` and sources 200 (polled up to 60 min), and the jar's signature
+  gives GnuPG `VALIDSIG` for the pinned fingerprint `E4D45440A37F73383B38842FFF9D45E2AFFFFB6D`.
+- Top-level `permissions: {}`; a concurrency group per ref that never cancels; 0 `uses:`; no GitHub CLI; the
+  JDK, Kotlin and Gradle pinned by version and sha256. A tag pushed with `GITHUB_TOKEN` starts no new run, so
+  the four jobs run in one run, by `needs:`. A push of an already-tagged version runs `version` only.
+- ⚠️ **The version line ARMS a release:** a push of `main` carrying an untagged version is released.
 
-Top-level `permissions: {}`; a concurrency group per ref that never cancels; 0 `uses:`; no GitHub
-CLI (H30); the JDK, Kotlin compiler and Gradle distribution pinned by version and sha256 (U9). A
-tag pushed with the job's `GITHUB_TOKEN` starts no new run, so all four jobs run in the one run, by
-`needs:`. A push of `main` whose version is already tagged runs `checks` only.
-⚠️ **The version line in `build.gradle.kts` ARMS a release:** a push of `main` that carries an
-untagged version releases it. `ci.yml` now runs on pull requests only.
+**After (U10–U12):** read the release back as a user (resolve the version from Central in a scratch project and
+load a fixture). Record it below, with a `Tested on: <OS and version> (<platform ID>)` line per platform run
+([platforms.md](platforms.md)). On a failure, "Re-run failed jobs": each job skips what is done; never a new tag
+for the same code, never a moved tag.
 
-**After (U10–U12):** read the release back as a user (resolve
-`io.github.jrmarcum:universal-wasm-loader-jvm:<version>` from Central in a scratch project and load
-a fixture). Record it below. On a failure, "Re-run failed jobs": each job skips what is done; never
-a new tag for the same code, never a moved tag.
-
-**Proof of the new flow (2026-11-10, before landing; best-practices 7.22):**
-- **The local half, rehearsed end to end.** A scratch clone used a scratch bare repository as
-  `origin`. `bump patch` passed the gate (floor patch; v0.4.2's 62 tests green) and committed
-  `bump to v0.4.3`, the version line only, leaving a clean tree. `release --dry-run` passed every
-  guard and the cold gate. The real run pushed `main` and read it back, and **no tag appeared on
-  the bare origin**. A second run was refused ("nothing to push").
-- **Measured refusals:** `bump` with no level; `bump` on a dirty tree.
-- **The CI half, read-only** (dry runs on the real API, no token): `tag v0.4.2` at its commit →
-  nothing written; at 0.4.1's commit → refused; `tag v0.4.3` → would create; `release v0.4.3`
-  before its tag → refused. The self-test has 29 checks; the mutant "an existing tag elsewhere
-  may be overwritten" was caught.
-- One defect found by the rehearsal and fixed: a script started by the `kotlin` launcher on
-  Windows could not start another `kotlin` (the launcher's quoted `JAVA_OPTS` broke the nested
-  `kotlin.bat`). Children now start without the launcher's variables.
-- **MEASURED on GitHub, 2026-11-10.** The non-release path: run 42909738486 on `8ec529d` (0.4.2
-  already tagged) → `checks` green, `tag` / `release` / `publish` skipped, no tag made. The release
-  path: 0.4.3, run 42911973493, all four jobs green (Release History below).
+How this flow was proven: [archive/release-flow-proofs.md](archive/release-flow-proofs.md).
 
 ## Release History (newest first)
 
 Commit ids are POST-purge (H19, 2026-11-08); pre-purge ids cited elsewhere are in
-[history-map-2026-11-08.md](history-map-2026-11-08.md). Each release from 0.2.0 on went through the
+[archive/history-map-2026-11-08.md](archive/history-map-2026-11-08.md). Each release from 0.2.0 on went through the
 compatibility gate locally (`bump`) and on the runner (`release`).
 
 ### 0.4.3 — 2026-11-10 · tag `v0.4.3` → `5554109` · live

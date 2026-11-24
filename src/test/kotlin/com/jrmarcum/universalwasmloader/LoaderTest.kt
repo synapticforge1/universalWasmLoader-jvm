@@ -523,8 +523,18 @@ class LoaderTest {
     // ---------------------------------------------------------------------------
 
     /** A temp dir holding fixture copies (name → fixture) and written files (name → text). */
+    // Every temp folder a test makes is removed after it (Tooling rule 15; measured 2026-11-24: before this,
+    // each run left 12 `uwl-refusal*` folders in the JVM's temp root).
+    private val tempDirs = mutableListOf<java.io.File>()
+
+    @org.junit.jupiter.api.AfterEach
+    fun removeTempDirs() {
+        tempDirs.forEach { it.deleteRecursively() }
+        tempDirs.clear()
+    }
+
     private fun dirWith(copies: Map<String, String> = emptyMap(), texts: Map<String, String> = emptyMap()): java.io.File {
-        val dir = java.nio.file.Files.createTempDirectory("uwl-refusal").toFile()
+        val dir = java.nio.file.Files.createTempDirectory("uwl-refusal").toFile().also { tempDirs += it }
         for ((name, from) in copies) java.io.File("src/test/resources/tests/$from").copyTo(java.io.File(dir, name))
         for ((name, text) in texts) java.io.File(dir, name).writeText(text)
         return dir
@@ -689,10 +699,9 @@ class LoaderTest {
 
     /** A copy of a fixture alone in a temp dir, so no companion .wit is found. */
     private fun rawCopy(name: String): String {
-        val dir = java.nio.file.Files.createTempDirectory("uwl-raw").toFile().apply { deleteOnExit() }
+        val dir = java.nio.file.Files.createTempDirectory("uwl-raw").toFile().also { tempDirs += it }
         val f = java.io.File(dir, name)
         java.io.File("src/test/resources/tests/$name").copyTo(f)
-        f.deleteOnExit()
         return f.path
     }
 

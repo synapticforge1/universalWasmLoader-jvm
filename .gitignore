@@ -36,3 +36,9 @@ replay_pid*
 
 # Private machine facts (paths, environment) — never committed.
 /cmem/local/
+
+# Open review issues stay local (review standard § 10, letter H37); checked by scripts/check-privacy.main.kts.
+/cmem/review-issues.md
+
+# The root CLAUDE.md is an untracked pointer to cmem/STATE.md and cmem/INDEX.md (memory guide, letter H38).
+/CLAUDE.md
