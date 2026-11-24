@@ -178,17 +178,7 @@ step("compat selftest", kotlinScript("scripts/compat.main.kts", "selftest"))
 step("compat release (floor + the previous tag's tests)", kotlinScript("scripts/compat.main.kts", "release"))
 step("check-host (only Host.kt touches the OS)", kotlinScript("scripts/check-host.main.kts"))
 step("check-privacy (no machine path, no stray address, nothing local tracked)", kotlinScript("scripts/check-privacy.main.kts"))
-// The size check's one recorded exception (cmem/working-rules.md § Records): the ★ copy in best-practices.md
-// is held verbatim until the owner decides (letter H38), so a line-length finding THERE is accepted; any
-// other problem refuses. The check itself stays byte-equal to the workspace's TS original.
-kotlinScript("scripts/check-cmem.main.kts").let { r ->
-    val problemLines = r.out.lines().filter { it.isNotBlank() && !it.startsWith("check-cmem:") }
-    val held = problemLines.filter { it.startsWith("line-length  best-practices.md:") }
-    if (r.exit != 0 && (problemLines.isEmpty() || held.size != problemLines.size)) {
-        fail("check-cmem failed (exit ${r.exit}):\n" + r.out.lines().takeLast(25).joinToString("\n"))
-    }
-    ok("check-cmem (the memory size check)" + if (held.isEmpty()) "" else "; ${held.size} held ★ line(s) accepted (H38)")
-}
+step("check-cmem (the memory size check)", kotlinScript("scripts/check-cmem.main.kts"))
 step("self-tests (github-release, check-host, check-privacy, release)", Run(
     listOf(
         kotlinScript("scripts/github-release.main.kts", "selftest"),

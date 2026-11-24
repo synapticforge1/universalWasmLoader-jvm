@@ -26,7 +26,7 @@ Updated: 2026-11-24, at the end of the session
 
 ## Waiting on owner
 - The GitHub Support request for the purged commits (H19).
-- The decision on the ★ best-practices copy (H38); the two test machines (H37).
+- The two test machines (H37); until then every platform but win-x64 is pending.
 
 ## Read next
 - [open-work.md](open-work.md): the open items, by ID

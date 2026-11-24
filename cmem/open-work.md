@@ -7,8 +7,6 @@ Where the project stands is in [STATE.md](STATE.md); releases are in [release.md
 
 - **O1 · H19: the GitHub Support request** so that the purged commits are no longer served by hash
   ([archive/history-map-2026-11-08.md](archive/history-map-2026-11-08.md) § Still open).
-- **O2 · The ★ copy in `best-practices.md`:** held verbatim until the owner decides (letter H38); its line
-  158 is 201 characters, the one problem the size check reports.
 - **O3 · The two test machines** (an Intel Mac with Parallels 26, an arm64 Mac with Parallels 27): until they
   exist, every platform but `win-x64` is `pending` ([platforms.md](platforms.md)).
 

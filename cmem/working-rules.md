@@ -51,8 +51,9 @@ applies underneath; where this file says nothing, the floor governs.
   [archive/history-map-2026-11-08.md](archive/history-map-2026-11-08.md); `git show` on an old id fails.
 - **Limits (the size check):** `INDEX.md` ≤ 3 KB; `STATE.md` ≤ 60 lines with its four required headings; every
   other live note ≤ 25 KB; no line over 200 characters outside a code block. `archive/` and `local/` are
-  unlimited. **One recorded exception:** the ★ copy in `best-practices.md` is held VERBATIM until the owner
-  decides (letter H38), so its line 158 (201 characters) stays and the check reports it.
+  unlimited. No exception is recorded.
+- **The ★ copy** is `best-practices-shared.md`, held as copied under its stamp (owner, 2026-11-19, letter H38: the one
+  exception to "link, do not copy"); this repo's own lessons are `best-practices.md` § L.
 - **Open and closed never share a file:** a closed item moves to `cmem/archive/`, its ID kept.
 - **Never run a formatter on `cmem/`.**
 

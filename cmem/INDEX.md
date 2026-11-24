@@ -9,7 +9,8 @@ Read STATE.md first. Open another file only when the task matches its line.
 - [release.md](release.md): only when releasing; the Release History, newest first
 - [review-process.md](review-process.md): only during a review; this repo's slots in the standard
 - [platforms.md](platforms.md): when a platform, the host module or a "Tested on" line is in question
-- [best-practices.md](best-practices.md): when choosing how to test or measure; § L is this repo's own
+- [best-practices.md](best-practices.md): when choosing how to test or measure; this repo's own lessons (§ L)
+- [best-practices-shared.md](best-practices-shared.md): the workspace's ★ rules, a stamped copy; when § L is silent
 - [archive/](archive/): do not read unless the owner asks about past work; search it by item ID
 - `local/`: machine facts; never given to a reviewer
 - `review-issues.md` (untracked): open review issues, during a review only

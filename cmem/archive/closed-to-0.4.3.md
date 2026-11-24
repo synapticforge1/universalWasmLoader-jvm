@@ -8,6 +8,9 @@ Archived 2026-11-24 (memory guide, letter H38: open and closed never share a fil
   server errors (the owner decided: only absent is raw); the body that stalls after the headers (now within
   the limit, tested); the WIT call path's linear export lookup (now a map).
 - **0.4.3 confirm-on-Central** (2026-11-10): `<latest>0.4.3</latest>`, read after run 42911973493.
+- **O2 · the ★ copy** (closed 2026-11-24): the owner decided on 2026-11-19 (letter H38) to keep it in a file of its
+  own. It is now `cmem/best-practices-shared.md`, its text unchanged: whitespace-normalized, it equals the old
+  block (compared by a one-time script). Its one 201-character line was rewrapped at the canonical's break.
 
 ## Workspace ledger answers (the old row-per-item ledger, before letter H41)
 
