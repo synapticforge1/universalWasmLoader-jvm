@@ -19,5 +19,17 @@ Moved from release.md on 2026-11-24 (memory guide: a rule file states the rule; 
 
 ## 2026-11-24 — CI only publishes; the review set and every gate run locally (letter H37)
 
-Recorded in [the 2026-11-24 entry of design notes](../overview.md) and the commit that made the change;
-the rehearsal is listed there.
+- **Rehearsed end to end** in a scratch clone whose `origin` was a scratch bare repository holding the branch
+  as `main` and every tag. A `- Review complete: <HEAD>` line was written to the clone's gitignored
+  `cmem/review-issues.md`; `bump patch` passed the gate (floor patch; v0.4.3's 62 tests green) and committed
+  `bump to v0.4.4`, the version line only.
+- **`release --dry-run`:** every guard and every gate passed — the review gate, clean tree, fast-forward,
+  new tag, Central 404, `clean check`, compat self-test and release mode, `check-host`, `check-privacy`,
+  `check-cmem` (the held ★ line accepted and named), the four self-tests.
+- **Refused, as designed:** no review line (measured on the real repo); a code commit after the reviewed
+  commit ("changed since the review … Callbacks.kt").
+- **The real run** pushed `main` to the scratch origin and read it back; no tag appeared there.
+- **The workflow** (`version` → `tag` → `release` → `publish`) parsed with Bun.YAML: permissions as designed,
+  0 `uses:`, no test step, the secrets in one step. The `version` job's shell logic ran in Git Bash: 0.4.3
+  found; two version lines and none refused; 0.4.3 not new, 9.9.9 new.
+- **Unmeasured on GitHub** until the next push of `main` (the `version` job only) and the next release.

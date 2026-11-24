@@ -51,6 +51,14 @@ the next free number; numbers are never reused.
   (the old `./gradlew release`) does start one; a tag pushed with a job's `GITHUB_TOKEN` starts
   none, which is why the 2026-11-10 workflow tags, pages and publishes in the same run.
   [universalWasmLoader-jvm; cf. loader-dart's three re-runs]
+- **L10 Count what a run leaves behind, and count it again for the gates that run OLD code.** `LoaderTest`
+  left 12 temp folders per run, found only by counting the temp root after a run. After the fix the
+  rehearsal still left 36: the compatibility gate runs the previous tag's tests UNTOUCHED, so their leak
+  came back with them. The gate now gives those JVMs a temp directory inside its own worktree, which it
+  removes (2026-11-24). [universalWasmLoader-jvm; cf. wasmrt I10]
+- **L11 Delete a Gradle build tree with Git Bash `rm -rf`, not PowerShell `Remove-Item`.** Kotlin test classes
+  named after long backticked test names pass Windows' path limit, and `Remove-Item -Recurse` fails part-way
+  (2026-11-24). [universalWasmLoader-jvm]
 
 ## ★ The workspace's convergent rules — a COPY, stamped 2026-10-26 (workspace letters H6, H24, H27, C8)
 
