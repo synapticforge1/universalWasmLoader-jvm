@@ -4,7 +4,7 @@ Updated: 2026-11-24, at the end of the session
 
 ## Version
 - Released: 0.4.3 on 2026-11-10 (Maven Central `io.github.jrmarcum:universal-wasm-loader-jvm`)
-- Working branch: memory-guide-2026-11-24, 8 commits on 0.4.3's `main` (not merged, not pushed)
+- Working branch: main (memory-guide-2026-11-24 merged and pushed on 2026-11-24, owner: "push")
 
 ## Now
 - The memory guide (H38) applied: STATE, a router INDEX, an untracked CLAUDE.md, an archive, the size check.
@@ -19,12 +19,11 @@ Updated: 2026-11-24, at the end of the session
 - Platforms passed: win-x64
 
 ## Next
-1. On "push": merge the branch into `main`; the push runs only the `version` job (0.4.3 is tagged).
+1. Read the first run of the CI-only workflow on GitHub: the `version` job only (0.4.3 is tagged).
 2. Before the next release: "review" (the five classes), then the full suite on each platform with a machine.
 3. C49: copy loader-js's re-stamped `fixtures.json` once it lands (open-work O5).
 
 ## Waiting on owner
-- The word "push" for this branch.
 - The GitHub Support request for the purged commits (H19); the two test machines (H37).
 
 ## Read next
