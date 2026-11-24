@@ -38,7 +38,8 @@ val MACHINE_PATHS: List<Pair<String, Regex>> = listOf(
     "a drive path into a user profile, the project tree or a tool install" to
         Regex("""\b[A-Za-z]:[\\/]{1,2}(Users|Programs|scoop|tools)[\\/]{1,2}$SEGMENT""", RegexOption.IGNORE_CASE),
     "a Unix-style drive path" to Regex("""(?<![\w.])/(mnt/)?[a-z]/(Users|Programs)/$SEGMENT""", RegexOption.IGNORE_CASE),
-    "a Linux home folder" to Regex("""(?<![\w.~])/home/$SEGMENT"""),
+    // `[h]ome` so this line does not match itself when the gate scans its own file.
+    "a Linux home folder" to Regex("""(?<![\w.~])/[h]ome/$SEGMENT"""),
 )
 val EMAIL = Regex("""[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}""")
 val EMAIL_ALLOWED_IN = setOf("build.gradle.kts")
@@ -101,24 +102,29 @@ fun selftest(): Int {
     fun trackedCaught(p: String) { n++; if (trackedProblems(listOf(p)).isEmpty()) bad += "not caught as tracked: $p" }
     fun trackedSpared(p: String) { n++; if (trackedProblems(listOf(p)).isNotEmpty()) bad += "falsely caught as tracked: $p" }
 
-    caught("a.md", "see D:\\Programs\\someproject\\file")
-    caught("a.md", "C:\\Users\\someone\\scoop\\apps")
-    caught("a.md", "c:/users/someone/x")
-    caught("a.md", "D:\\\\Programs\\\\proj")
-    caught("a.md", "/c/Users/someone/x")
-    caught("a.md", "/mnt/d/Programs/proj")
-    caught("a.md", "/home/someone/.bun")
-    caught("x.wasm", "\u0000\u0001D:\\Programs\\proj\\src\u0000")
-    n++; if (findings("y.wasm", decode(byteArrayOf(0xC3.toByte(), 0x28) + "D:\\Programs\\proj".toByteArray())).isEmpty()) bad += "not caught: a path inside invalid UTF-8"
-    n++; if (findings("z.md", decode("the tree (`D:\\Programs\\…`)".toByteArray(Charsets.UTF_8))).isNotEmpty()) bad += "falsely caught: a UTF-8 elision read from bytes"
-    caught("README.md", "write to first.last@example.org")
-    caught("scripts/x.main.kts", "a.b@c.io")
+    // The samples are written with tokens ({D} {C} {c} a drive letter and colon, {/} a slash, {@} an at sign)
+    // and assembled here, so this file holds no literal path or address for the scan to find in itself.
+    fun s(t: String) = t.replace("{D}", "D" + ":").replace("{C}", "C" + ":").replace("{c}", "c" + ":")
+        .replace("{/}", "/").replace("{@}", "@")
 
-    spared("cmem/working-rules.md", "a user profile (`C:\\Users\\<name>\\…`), the project tree (`D:\\Programs\\…`)")
+    caught("a.md", s("see {D}\\Programs\\someproject\\file"))
+    caught("a.md", s("{C}\\Users\\someone\\scoop\\apps"))
+    caught("a.md", s("{c}/users/someone/x"))
+    caught("a.md", s("{D}\\\\Programs\\\\proj"))
+    caught("a.md", s("{/}c/Users/someone/x"))
+    caught("a.md", s("{/}mnt/d/Programs/proj"))
+    caught("a.md", s("{/}home/someone/.bun"))
+    caught("x.wasm", s("\u0000\u0001{D}\\Programs\\proj\\src\u0000"))
+    n++; if (findings("y.wasm", decode(byteArrayOf(0xC3.toByte(), 0x28) + s("{D}\\Programs\\proj").toByteArray())).isEmpty()) bad += "not caught: a path inside invalid UTF-8"
+    n++; if (findings("z.md", decode(s("the tree (`{D}\\Programs\\…`)").toByteArray(Charsets.UTF_8))).isNotEmpty()) bad += "falsely caught: a UTF-8 elision read from bytes"
+    caught("README.md", s("write to first.last{@}example.org"))
+    caught("scripts/x.main.kts", s("a.b{@}c.io"))
+
+    spared("cmem/working-rules.md", s("a user profile (`{C}\\Users\\<name>\\…`), the project tree (`{D}\\Programs\\…`)"))
     spared("a.md", "a placeholder `<repo-root>/cmem` and `../../workspace/cmem/`")
-    spared("a.md", "a convention path C:\\zig-cache\\wazmrt")
+    spared("a.md", s("a convention path {C}\\zig-cache\\wazmrt"))
     spared("a.md", "~/.bun/bin and /tmp and ./home/x")
-    spared("build.gradle.kts", "email.set(\"first.last@example.org\")")
+    spared("build.gradle.kts", s("email.set(\"first.last{@}example.org\")"))
     spared("a.md", "a scoped name `@types/bun` and `user@` and `@jrmarcum`")
 
     trackedCaught("cmem/review-issues.md")
