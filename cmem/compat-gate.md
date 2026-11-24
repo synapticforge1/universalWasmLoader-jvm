@@ -1,6 +1,6 @@
 # The compatibility gate (workspace letter H6, built 2026-10-26)
 
-🔒 Binding (owner, 2026-09-20; workspace `../../../cmem/layout-and-packaging.md` § "The compatibility
+🔒 Binding (owner, 2026-09-20; workspace `../../workspace/cmem/layout-and-packaging.md` § "The compatibility
 gate"): "backward compatible" is a gate result, never a judgment made at bump time. Modelled on
 loader-dart's and loader-dotnet's gates (`../../universalWasmLoader-{dart,dotnet}/cmem/compat-gate.md`).
 One file: `scripts/compat.main.kts` (Kotlin script; workspace Tooling rule 1).
