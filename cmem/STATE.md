@@ -19,9 +19,9 @@ Updated: 2026-11-24, at the end of the session
 - Platforms passed: win-x64
 
 ## Next
-1. Read the first run of the CI-only workflow on GitHub: the `version` job only (0.4.3 is tagged).
-2. Before the next release: "review" (the five classes), then the full suite on each platform with a machine.
-3. C49: copy loader-js's re-stamped `fixtures.json` once it lands (open-work O5).
+1. Before the next release: "review" (the five classes), then the full suite on each platform with a machine.
+2. C49: copy loader-js's re-stamped `fixtures.json` once it lands (open-work O5).
+3. The next release measures the CI-only workflow's release path (`tag` → `release` → `publish`).
 
 ## Waiting on owner
 - The GitHub Support request for the purged commits (H19); the two test machines (H37).

@@ -32,4 +32,6 @@ Moved from release.md on 2026-11-24 (memory guide: a rule file states the rule; 
 - **The workflow** (`version` → `tag` → `release` → `publish`) parsed with Bun.YAML: permissions as designed,
   0 `uses:`, no test step, the secrets in one step. The `version` job's shell logic ran in Git Bash: 0.4.3
   found; two version lines and none refused; 0.4.3 not new, 9.9.9 new.
-- **Unmeasured on GitHub** until the next push of `main` (the `version` job only) and the next release.
+- **Measured on GitHub, the non-release path:** the push of merge `a2e1f10` (2026-11-24) ran run 45508441477 —
+  `version` green (the main-only guard, the token-less clone, "Is this a release?"), and `tag` / `release` /
+  `publish` skipped; GitHub's tags unchanged (10). The release path is measured at the next release.
