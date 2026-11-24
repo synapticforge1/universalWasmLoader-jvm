@@ -1,7 +1,7 @@
 # platforms.md — the support matrix and the platform notes
 
 Last verified: 2026-11-24. The six IDs, the status values, the tiers and the "Tested on" rule are the workspace's
-`../../workspace/cmem/platforms.md`; they are not restated here.
+`../../../workspace/cmem/platforms.md`; they are not restated here.
 
 ## Tier
 

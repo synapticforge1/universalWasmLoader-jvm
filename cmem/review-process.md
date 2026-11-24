@@ -1,6 +1,6 @@
 # review-process.md — this repo's slots in the review standard
 
-Last verified: 2026-11-24. The standard is the workspace's `../../workspace/cmem/review-process.md` (final,
+Last verified: 2026-11-24. The standard is the workspace's `../../../workspace/cmem/review-process.md` (final,
 2026-11-17; letter H37): it is not restated here. This file fills its slots (§ 12) for universalWasmLoader-jvm.
 
 ## How a review runs here

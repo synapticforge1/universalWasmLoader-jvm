@@ -1,7 +1,7 @@
 # working-rules.md — the standing rules of this repo
 
 Last verified: 2026-11-24. The rules, in the present tense; how a rule changed is in [overview.md](overview.md)
-and [archive/](archive/). The workspace floor (`../../workspace/cmem/working-rules.md` and `tooling-rules.md`)
+and [archive/](archive/). The workspace floor (`../../../workspace/cmem/working-rules.md` and `tooling-rules.md`)
 applies underneath; where this file says nothing, the floor governs.
 
 ## Session routine
@@ -16,9 +16,9 @@ applies underneath; where this file says nothing, the floor governs.
 
 ## Workspace correspondence (🔒 owner, 2026-10-26; letters H41, H42)
 
-- **Before new work, read `../../workspace/cmem/workspace-correspondence.md`**: one line per OPEN item. Open
+- **Before new work, read `../../../workspace/cmem/workspace-correspondence.md`**: one line per OPEN item. Open
   only the items whose "to" names this repo (or "the loaders", "every project") and the ones whose subject
-  touches what you will change, in `../../workspace/cmem/letters/<ID>.md`.
+  touches what you will change, in `../../../workspace/cmem/letters/<ID>.md`.
 - **Answer by appending ONE bullet** under `## Answers` in the item's file:
   `- **loader-jvm, <date>:** <what was done, the commit, the check>`, every line under 200 characters. Never
   edit the index line or the status; only the creator closes. That bullet is the one write this repo makes
@@ -45,6 +45,8 @@ applies underneath; where this file says nothing, the floor governs.
 - **`cmem/` is the single home of project memory.** The root `CLAUDE.md` is untracked and points at
   `cmem/STATE.md` and `cmem/INDEX.md` only (letter H38). `README.md` is the public doc, not memory.
 - **A number is a claim with a date.** Re-derive before quoting or acting on it.
+- **A path in a `cmem/` note is relative to that note:** the workspace is `../../../workspace/cmem/` (from the
+  repository root it is `../../workspace/cmem/`).
 - **Commit ids written before 2026-11-08 are PRE-PURGE** (H19 rewrote every id after the root): look them up in
   [archive/history-map-2026-11-08.md](archive/history-map-2026-11-08.md); `git show` on an old id fails.
 - **Limits (the size check):** `INDEX.md` ≤ 3 KB; `STATE.md` ≤ 60 lines with its four required headings; every

@@ -2,7 +2,7 @@
 
 Last verified: 2026-11-24. The one place releases are recorded (owner, 2026-11-10; letter H33, D3): newest
 first, a summary of what changed in each. The uniform shape is the workspace's
-`../../workspace/cmem/release-process.md` § 5 (U1–U12, amended by the review standard, letter H37). Build
+`../../../workspace/cmem/release-process.md` § 5 (U1–U12, amended by the review standard, letter H37). Build
 facts and credentials are in [overview.md](overview.md); the gate in [compat-gate.md](compat-gate.md).
 
 ## How a release runs (since 2026-11-24)
