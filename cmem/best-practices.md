@@ -32,7 +32,7 @@ the next free number; numbers are never reused.
   ref" (workspace H25, 2026-10-26) was true of the tips only. A Gradle cache binary tracked in the
   first 15 commits, including the tagged trees of `v0.1.0` / `v0.1.1`, held the owner's paths. It
   was found with `git grep -a … $(git rev-list --all)` (2026-11-08,
-  [history-map-2026-11-08.md](history-map-2026-11-08.md)). [universalWasmLoader-jvm]
+  [archive/history-map-2026-11-08.md](archive/history-map-2026-11-08.md)). [universalWasmLoader-jvm]
 - **L7 A history rewrite verifies itself pair by pair, then against a control.** Pair old and new
   commits by header + message (without tree / parent lines), and require identical metadata, mapped
   parents, and tree differences that are exactly the planned deletions. Then run the scan on the

@@ -59,14 +59,30 @@ src/main/kotlin/com/jrmarcum/universalwasmloader/
 ├── UniversalWasmLoader.kt   # public API, ModuleHandle, string-return decode, load/instantiate helpers
 ├── Abi.kt                   # encode/decode, MemRef, StringAbi, buildEnvFunctions (env HostFunctions)
 ├── Callbacks.kt             # host import callbacks, .on(camelName) { … } with 0–3 args
+├── Host.kt                  # EVERY OS call: files, classpath, HTTP, WASI's inherited stdio/env; selfCheck (H40)
 └── WitParser.kt             # strict WIT parser (SPEC 4.0.0 §2, a port of -js's wit-parser.js; internal)
-src/test/kotlin/.../LoaderTest.kt    # 62 tests: SPEC §8 incl. Refusals, two §10, wasmImport over HTTP, raw mode, fixture stamp
+src/test/kotlin/.../LoaderTest.kt    # 62 tests: SPEC §8 incl. Refusals, two §10, wasmImport over HTTP, raw mode
+src/test/kotlin/.../HostSelfCheck.kt # the on-demand host self-check (./gradlew hostSelfCheck; excluded from test)
 src/test/resources/tests/            # the stamped reference fixtures + fixtures.json (see Tests)
 api/universal-wasm-loader-jvm.api    # the public API snapshot (compat gate Rule 1)
 api/v0.1.2.api                       # the released surface of v0.1.2, generated from the tag
 scripts/compat.main.kts              # compatibility gate + version bump (replaced bump.sh)
-scripts/github-release.main.kts      # publish.yml's release job: branch + GitHub Release by REST (H30)
+scripts/release.main.kts             # the local half of a release: review gate, guards, every gate, push main
+scripts/github-release.main.kts      # publish.yml's tag and page jobs, by REST (H30, H33)
+scripts/check-host.main.kts          # gate: only Host.kt touches the OS (H40)
+scripts/check-privacy.main.kts       # gate: no machine path, no stray address, nothing local tracked (H37)
+scripts/check-cmem.main.kts          # gate: the memory size check, a proven port of the workspace's TS (H38)
 ```
+
+**Design notes, 2026-11-24** (letters H37, H38, H40):
+- **The OS edge is one file, `Host.kt`** (tier 1). The loader keeps the SPEC logic (absent vs failed, the time
+  limit, status handling); `Host` holds only the calls. Behaviour is unchanged: the 62 tests pass before and
+  after. `check-host.main.kts` run on v0.4.3's sources reports the 21 calls that moved.
+- **CI only publishes** (owner, 2026-11-17). The tests and gates moved from `publish.yml`'s `checks` job and
+  `ci.yml` (removed) into `./gradlew release`, behind a review gate. So nothing tests a pull request on GitHub
+  any more; a contributor runs the gates locally.
+- **The size check is a Kotlin port, not the TS file** the guide names, because this repo's scripts are Kotlin
+  and it runs no Bun ([archive/check-cmem-port-2026-11-24.md](archive/check-cmem-port-2026-11-24.md)).
 
 ## Public API (the `api/` snapshot is the authoritative list)
 

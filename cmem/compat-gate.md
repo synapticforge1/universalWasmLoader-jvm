@@ -7,15 +7,19 @@ One file: `scripts/compat.main.kts` (Kotlin script; workspace Tooling rule 1).
 
 ## What runs where
 
+Every rule runs LOCALLY (since 2026-11-24, letter H37: CI only publishes), inside `./gradlew release`.
+
 | Rule | File | Runs in |
 | --- | --- | --- |
-| 1, the SURFACE | `api/universal-wasm-loader-jvm.api` (committed), from KGP 2.2's ABI validation | `checkLegacyAbi` inside `./gradlew check` (local + CI); `updateLegacyAbi` re-baselines |
-| 2, the FLOOR | `compat.main.kts` `floorOf` | `bump` (refuses below it), `report`, `release` (CI `checks` on the pushed `main` commit, before the tag exists — since 2026-11-10; on the tag before that) |
+| 1, the SURFACE | `api/universal-wasm-loader-jvm.api`, from KGP 2.2's ABI validation | `checkLegacyAbi` in `./gradlew check` |
+| 2, the FLOOR | `compat.main.kts` `floorOf` | `bump` (refuses below it), `report`, `release` (in `release.main.kts`) |
 | 3, BEHAVIOUR | `compat.main.kts` `previousTests` | same places; required green unless the floor is major |
-| 4, deprecate first | README `### ⚠️ Breaking Changes` | a major floor needs a `\| _next release_ \|` row; `bump` stamps the version into it; `release` needs the version's row |
-| 5, re-baseline alone | the STALE refusal | an intended API change runs `updateLegacyAbi` in its own commit, with the reason |
+| 4, deprecate first | README `### ⚠️ Breaking Changes` | a major floor needs a `\| _next release_ \|` row |
+| 5, re-baseline alone | the STALE refusal | an API change runs `updateLegacyAbi` in its own commit, with the reason |
 | 6, pre-1.0 | `problemsFor` | 0.y.z: a minor may stand in for a major floor; the row is still required |
-| self-test | `kotlin scripts/compat.main.kts selftest` (30 checks) | `ci.yml` and `publish.yml`; no git, no build, no network |
+| self-test | `kotlin scripts/compat.main.kts selftest` (30 checks) | `release.main.kts`; no git, no build, no network |
+
+- Rule 4 detail: `bump` stamps the version into the `_next release_` row; `release` needs the version's row.
 
 **The surface:** the binary API as the Kotlin Gradle plugin dumps it (one line per public class and
 member, JVM descriptors) plus the SPEC version the README declares (`` `SPEC.md` … **vX.Y.Z** ``;
@@ -67,7 +71,10 @@ line, exit code and the written `build.gradle.kts` compared.
 | --- | --- |
 | (no arg), `patch`, `minor`, `major` | identical: same success line, exit 0, same file (0.1.3 / 0.2.0 / 1.0.0) |
 | `bogus` | identical: same `❌ bump: unknown release kind "bogus" …`, exit 1, file untouched |
-| no `version =` line | both exit 1, file untouched; `bump.sh` printed NOTHING (under `pipefail`, `grep` finding no line killed it before its own message), the port prints the message `bump.sh` intended |
+| no `version =` line | both exit 1, file untouched; `bump.sh` printed NOTHING (see below), the port prints the message |
+
+- `bump.sh` printed nothing because, under `pipefail`, `grep` finding no line killed it before its own message;
+  the port prints the message `bump.sh` intended.
 
 The one difference is that defect, fixed. The port adds the gate's own refusals, which `bump.sh` never
 had (and so cannot be compared). `bump.sh` was removed after the proof.
